@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     branches:
-      - main  # Trigger on every push to main branch
+      - main # Trigger on every push to main branch
 
 permissions:
   contents: write
@@ -26,65 +26,68 @@ jobs:
       run: |
         sudo xcode-select --install || true
         
-    - name: Build DMG
+    - name: Build ZIP
       run: |
         make release
+
+      - name: Get version info
+        id: get_version
+        run: |
+          # Get version from Info.plist
+          VERSION=$(defaults read "$GITHUB_WORKSPACE/KollektivWidget/Info.plist" CFBundleShortVersionString)
+          BUILD=$(git rev-list --count HEAD)
+          COMMIT_SHORT=$(git rev-parse --short HEAD)
+
+          # Create a unique version with build number
+          FULL_VERSION="${VERSION}.${BUILD}"
+
+          echo "VERSION=${FULL_VERSION}" >> $GITHUB_OUTPUT
+          echo "BASE_VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "BUILD_NUMBER=${BUILD}" >> $GITHUB_OUTPUT
+          echo "COMMIT_SHORT=${COMMIT_SHORT}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Create release notes
+          cat > release_notes.md << EOF
+          ## KollektivWidget v${{ steps.get_version.outputs.VERSION }}
+
+          **Build #${{ steps.get_version.outputs.BUILD_NUMBER }}** (commit: ${{ steps.get_version.outputs.COMMIT_SHORT }})
+
+          A macOS menu bar app for Norwegian public transport departures.
+
+                  ### Installation
+        1. Download the ZIP file below
+        2. Extract the ZIP file and copy KollektivWidget.app to Applications
+        3. **Important:** Right-click the app in Applications and select "Open" (don't double-click)
+        4. Click "Open" when macOS asks if you're sure you want to open it
+        5. Grant notification permissions when prompted
         
-    - name: Get version info
-      id: get_version
-      run: |
-        # Get version from Info.plist
-        VERSION=$(defaults read "$GITHUB_WORKSPACE/KollektivWidget/Info.plist" CFBundleShortVersionString)
-        BUILD=$(git rev-list --count HEAD)
-        COMMIT_SHORT=$(git rev-parse --short HEAD)
-        
-        # Create a unique version with build number
-        FULL_VERSION="${VERSION}.${BUILD}"
-        
-        echo "VERSION=${FULL_VERSION}" >> $GITHUB_OUTPUT
-        echo "BASE_VERSION=${VERSION}" >> $GITHUB_OUTPUT
-        echo "BUILD_NUMBER=${BUILD}" >> $GITHUB_OUTPUT
-        echo "COMMIT_SHORT=${COMMIT_SHORT}" >> $GITHUB_OUTPUT
-      
-    - name: Create Release
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        # Create release notes
-        cat > release_notes.md << EOF
-        ## KollektivWidget v${{ steps.get_version.outputs.VERSION }}
-        
-        **Build #${{ steps.get_version.outputs.BUILD_NUMBER }}** (commit: ${{ steps.get_version.outputs.COMMIT_SHORT }})
-        
-        A macOS menu bar app for Norwegian public transport departures.
-        
-        ### Installation
-        1. Download the DMG file below
-        2. Open the DMG and drag KollektivWidget.app to Applications
-        3. Launch from Applications folder
-        4. Grant notification permissions when prompted
-        
-        ### Features
-        - Real-time departure information for all Norwegian public transport
-        - Customizable notification timing
-        - Dark mode support
-        - Menu bar integration
-        
-        ### System Requirements
-        - macOS 13.0 or later
-        - Internet connection for real-time data
-        
-        ---
-        *This release was automatically generated from the latest commit on main.*
-        EOF
-        
-        # Delete existing release/tag if it exists
-        gh release delete v${{ steps.get_version.outputs.VERSION }} --yes || true
-        git tag -d v${{ steps.get_version.outputs.VERSION }} || true
-        git push origin :refs/tags/v${{ steps.get_version.outputs.VERSION }} || true
-        
-        # Create new release with DMG
+        > **Note:** You may see a security warning since this app isn't signed with an Apple Developer certificate. The right-click → Open method bypasses this warning safely.
+
+          ### Features
+          - Real-time departure information for all Norwegian public transport
+          - Customizable notification timing
+          - Dark mode support
+          - Menu bar integration
+
+          ### System Requirements
+          - macOS 13.0 or later
+          - Internet connection for real-time data
+
+          ---
+          *This release was automatically generated from the latest commit on main.*
+          EOF
+
+          # Delete existing release/tag if it exists
+          gh release delete v${{ steps.get_version.outputs.VERSION }} --yes || true
+          git tag -d v${{ steps.get_version.outputs.VERSION }} || true
+          git push origin :refs/tags/v${{ steps.get_version.outputs.VERSION }} || true
+
+                  # Create new release with ZIP
         gh release create v${{ steps.get_version.outputs.VERSION }} \
           --title "KollektivWidget v${{ steps.get_version.outputs.VERSION }}" \
           --notes-file release_notes.md \
-          ./build/KollektivWidget.dmg#"KollektivWidget-v${{ steps.get_version.outputs.VERSION }}.dmg"
+          ./build/KollektivWidget.zip#"KollektivWidget-v${{ steps.get_version.outputs.VERSION }}.zip"

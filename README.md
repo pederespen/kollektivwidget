@@ -8,10 +8,13 @@ Uses the Entur API to provide real-time departure information for all Norwegian 
 
 ### Download Release (Recommended)
 
-1. Download the latest `KollektivWidget-v*.dmg` from [Releases](https://github.com/pederespen/kollektivwidget/releases)
-2. Open the DMG file and drag KollektivWidget.app to Applications
-3. Launch from Applications folder
-4. Grant notification permissions when prompted
+1. Download the latest `KollektivWidget-v*.zip` from [Releases](https://github.com/pederespen/kollektivwidget/releases)
+2. Extract the ZIP file and copy KollektivWidget.app to Applications
+3. **Important:** Right-click the app in Applications and select "Open" (don't double-click)
+4. Click "Open" when macOS asks if you're sure you want to open it
+5. Grant notification permissions when prompted
+
+> **Security Note:** You may see a warning that "Apple cannot verify KollektivWidget is free of malware." This is normal for unsigned apps. Using right-click → Open safely bypasses this warning.
 
 **System Requirements:** macOS 13.0 or later
 
@@ -37,10 +40,9 @@ The app will build, install to `/Applications`, and launch automatically.
 ## Features
 
 - **Real-time departures** for all Norwegian public transport
-- **Smart notifications** with customizable timing
-- **Dark mode** support
+- **Notifications** with customizable timing
 - **Menu bar integration** for quick access
-- **Automatic refresh** of departure data
+- **Dark mode**
 
 ## Development
 
@@ -49,14 +51,10 @@ The app will build, install to `/Applications`, and launch automatically.
 ```bash
 make build          # Build the app bundle
 make run            # Build, install, and launch
-make dmg            # Create distributable DMG package
+make zip            # Create distributable ZIP package
 make release        # Build and package for release
 make clean          # Clean build artifacts
 ```
-
-### Creating Releases
-
-See [release-guide.md](release-guide.md) for detailed release instructions.
 
 ## License
 

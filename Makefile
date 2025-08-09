@@ -10,7 +10,7 @@ ICONSET_DIR = $(BUILD_DIR)/AppIcon.iconset
 # Swift compiler flags
 SWIFT_FLAGS = -O -Xlinker -rpath -Xlinker @executable_path/../Frameworks
 
-.PHONY: all clean run build install dmg release
+.PHONY: all clean run build install zip release
 
 all: build
 
@@ -84,14 +84,14 @@ reinstall: clean install
 verify-sign:
 	@/usr/bin/codesign --display --verbose=2 /Applications/$(APP_NAME).app | cat
 
-dmg: build
-	@echo "💿 Creating DMG package..."
-	@./create-dmg.sh
-	@echo "✅ DMG package ready for distribution!"
+zip: build
+	@echo "📦 Creating ZIP package..."
+	@./create-zip.sh
+	@echo "✅ ZIP package ready for distribution!"
 
-release: dmg
+release: zip
 	@echo "🎉 Release package created!"
-	@echo "📦 Upload build/$(APP_NAME).dmg to GitHub releases"
+	@echo "📦 Upload build/$(APP_NAME).zip to GitHub releases"
 
 debug:
 	@echo "🐛 Building debug version..."
