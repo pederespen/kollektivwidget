@@ -1,53 +1,27 @@
 # 🚌 Ruter Widget
 
-macOS menu bar app that notifies you before your bus, tram, metro, or train departs.
+A macOS menu bar app that notifies you before your bus, tram, metro, or train.
+Made to be used in anywhere in Norway that is supported by the Entur API.
 
-## 🚀 Development quick start
+## 🚀 Quick Start
 
-### Prerequisites
-- macOS 13+
-- Xcode Command Line Tools: `xcode-select --install`
-
-### Build, sign, install, and run
-
-The Makefile handles everything (including ad‑hoc code signing so notifications work on macOS 15/Sequoia):
+**Prerequisites:** macOS 13+ and Xcode Command Line Tools (`xcode-select --install`)
 
 ```bash
-git clone <your-repo>
+git clone https://github.com/yourusername/ruter-widget
 cd ruter-widget
-
-# Rebuilds, ad‑hoc signs, installs to /Applications, and launches
 make run
-
-# If you need a fresh install
-make reinstall
-
-# Verify the app bundle is signed
-make verify-sign
-
-# Clean local build artifacts
-make clean
 ```
 
-On first launch, macOS will prompt for notification permission. Allow it. The app will then appear in System Settings > Notifications.
+The app will build, install to `/Applications`, and launch automatically.
 
-### Troubleshooting notifications (Sequoia)
-- Always run the installed app from `/Applications` (the Makefile does this).
-- The build is ad‑hoc signed automatically; this is sufficient for local development.
-- If the app doesn’t appear under Settings > Notifications after allowing:
-  - Quit the app, run `make reinstall`, launch again.
-  - Restart your Mac once if needed.
+## 🧭 Usage
 
-## 🧭 Using the app
-- Click the bus icon in the menu bar.
-- Search a stop by name and select lines to monitor, or enter a stop ID (`NSR:StopPlace:XXXXX`).
-- Set the notification lead time (default 5 min).
-- Use “Test Notification” to confirm delivery.
-
-## 🔧 Tech
-- Swift, SwiftUI, Cocoa
-- Entur Journey Planner GraphQL (public, no auth)
-- Menubar app with background polling
+1. Click the bus icon in your menu bar
+2. Add routes by searching for stops
+3. Set notification timing (default: 5 minutes before departure)
+4. Grant notification permission when prompted
 
 ## 📄 License
+
 MIT

@@ -16,39 +16,39 @@ all: build
 
 build: $(APP_DIR)/Contents/MacOS/$(APP_NAME)
 
-$(APP_DIR)/Contents/MacOS/$(APP_NAME): RuterWidget/RuterWidget/*.swift
+$(APP_DIR)/Contents/MacOS/$(APP_NAME): RuterWidget/*.swift
 	@echo "Building $(APP_NAME)..."
 	@mkdir -p $(MACOS_DIR)
 	@mkdir -p $(RESOURCES_DIR)
 	
 	# Copy Info.plist
-	@cp RuterWidget/RuterWidget/Info.plist $(CONTENTS_DIR)/
+	@cp RuterWidget/Info.plist $(CONTENTS_DIR)/
 	
 	# Try to compile asset catalog (preferred when full Xcode is available)
-	@if [ -d "RuterWidget/RuterWidget/Assets.xcassets" ]; then \
+	@if [ -d "RuterWidget/Assets.xcassets" ]; then \
 		echo "🎨 Compiling asset catalog (if available)..."; \
 		if xcrun actool --version >/dev/null 2>&1; then \
 			xcrun actool --compile "$(RESOURCES_DIR)" \
 				--platform macosx \
 				--minimum-deployment-target 13.0 \
 				--app-icon AppIcon \
-				"RuterWidget/RuterWidget/Assets.xcassets" >/dev/null || true; \
+				"RuterWidget/Assets.xcassets" >/dev/null || true; \
     		fi; \
 		if [ ! -f "$(RESOURCES_DIR)/AppIcon.icns" ]; then \
 			echo "🧩 actool output not found; generating AppIcon.icns via iconutil..."; \
 			rm -rf "$(ICONSET_DIR)"; \
 			mkdir -p "$(ICONSET_DIR)"; \
 			set -e; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/16.png "$(ICONSET_DIR)/icon_16x16.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/32.png "$(ICONSET_DIR)/icon_16x16@2x.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/32.png "$(ICONSET_DIR)/icon_32x32.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/64.png "$(ICONSET_DIR)/icon_32x32@2x.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/128.png "$(ICONSET_DIR)/icon_128x128.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/256.png "$(ICONSET_DIR)/icon_128x128@2x.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/256.png "$(ICONSET_DIR)/icon_256x256.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/512.png "$(ICONSET_DIR)/icon_256x256@2x.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/512.png "$(ICONSET_DIR)/icon_512x512.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/1024.png "$(ICONSET_DIR)/icon_512x512@2x.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/16.png "$(ICONSET_DIR)/icon_16x16.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/32.png "$(ICONSET_DIR)/icon_16x16@2x.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/32.png "$(ICONSET_DIR)/icon_32x32.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/64.png "$(ICONSET_DIR)/icon_32x32@2x.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/128.png "$(ICONSET_DIR)/icon_128x128.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/256.png "$(ICONSET_DIR)/icon_128x128@2x.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/256.png "$(ICONSET_DIR)/icon_256x256.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/512.png "$(ICONSET_DIR)/icon_256x256@2x.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/512.png "$(ICONSET_DIR)/icon_512x512.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/1024.png "$(ICONSET_DIR)/icon_512x512@2x.png"; \
 			iconutil -c icns "$(ICONSET_DIR)" -o "$(RESOURCES_DIR)/AppIcon.icns"; \
 			echo "✅ Generated $(RESOURCES_DIR)/AppIcon.icns"; \
 		fi; \
@@ -57,7 +57,7 @@ $(APP_DIR)/Contents/MacOS/$(APP_NAME): RuterWidget/RuterWidget/*.swift
 	# Compile Swift files
 	@swiftc $(SWIFT_FLAGS) \
 		-o $(MACOS_DIR)/$(APP_NAME) \
-		RuterWidget/RuterWidget/*.swift
+		RuterWidget/*.swift
 
 	# Ad-hoc code sign the app bundle to ensure Notification registration on macOS 15
 	@echo "\xF0\x9F\x94\x8F Code signing (ad-hoc)..."
@@ -88,31 +88,31 @@ debug:
 	@echo "🐛 Building debug version..."
 	@mkdir -p $(MACOS_DIR)
 	@mkdir -p $(RESOURCES_DIR)
-	@cp RuterWidget/RuterWidget/Info.plist $(CONTENTS_DIR)/
-	@if [ -d "RuterWidget/RuterWidget/Assets.xcassets" ]; then \
+	@cp RuterWidget/Info.plist $(CONTENTS_DIR)/
+	@if [ -d "RuterWidget/Assets.xcassets" ]; then \
 		echo "🎨 Compiling asset catalog (debug, if available)..."; \
 		if xcrun actool --version >/dev/null 2>&1; then \
 			xcrun actool --compile "$(RESOURCES_DIR)" \
 				--platform macosx \
 				--minimum-deployment-target 13.0 \
 				--app-icon AppIcon \
-				"RuterWidget/RuterWidget/Assets.xcassets" >/dev/null || true; \
+				"RuterWidget/Assets.xcassets" >/dev/null || true; \
     		fi; \
 		if [ ! -f "$(RESOURCES_DIR)/AppIcon.icns" ]; then \
 			echo "🧩 actool output not found; generating AppIcon.icns via iconutil (debug)..."; \
 			rm -rf "$(ICONSET_DIR)"; \
 			mkdir -p "$(ICONSET_DIR)"; \
 			set -e; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/16.png "$(ICONSET_DIR)/icon_16x16.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/32.png "$(ICONSET_DIR)/icon_16x16@2x.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/32.png "$(ICONSET_DIR)/icon_32x32.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/64.png "$(ICONSET_DIR)/icon_32x32@2x.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/128.png "$(ICONSET_DIR)/icon_128x128.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/256.png "$(ICONSET_DIR)/icon_128x128@2x.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/256.png "$(ICONSET_DIR)/icon_256x256.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/512.png "$(ICONSET_DIR)/icon_256x256@2x.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/512.png "$(ICONSET_DIR)/icon_512x512.png"; \
-			cp RuterWidget/RuterWidget/Assets.xcassets/AppIcon.appiconset/1024.png "$(ICONSET_DIR)/icon_512x512@2x.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/16.png "$(ICONSET_DIR)/icon_16x16.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/32.png "$(ICONSET_DIR)/icon_16x16@2x.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/32.png "$(ICONSET_DIR)/icon_32x32.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/64.png "$(ICONSET_DIR)/icon_32x32@2x.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/128.png "$(ICONSET_DIR)/icon_128x128.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/256.png "$(ICONSET_DIR)/icon_128x128@2x.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/256.png "$(ICONSET_DIR)/icon_256x256.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/512.png "$(ICONSET_DIR)/icon_256x256@2x.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/512.png "$(ICONSET_DIR)/icon_512x512.png"; \
+			cp RuterWidget/Assets.xcassets/AppIcon.appiconset/1024.png "$(ICONSET_DIR)/icon_512x512@2x.png"; \
 			iconutil -c icns "$(ICONSET_DIR)" -o "$(RESOURCES_DIR)/AppIcon.icns"; \
 			echo "✅ Generated $(RESOURCES_DIR)/AppIcon.icns (debug)"; \
 		fi; \
