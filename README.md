@@ -4,7 +4,7 @@ A macOS menu bar app that sends notifications when your bus, tram, or metro is a
 
 ## ✨ Features
 
-- **Simple Setup**: Add your transit stops by ID
+- **Simple Setup**: Search stops by name or add by ID
 - **Smart Notifications**: Get notified X minutes before departure
 - **Real-time Data**: Uses Entur's live departure API
 - **Menu Bar Integration**: Unobtrusive menu bar icon
@@ -16,7 +16,7 @@ A macOS menu bar app that sends notifications when your bus, tram, or metro is a
 ### Prerequisites
 
 - macOS 13.0 or later
-- Xcode (for building from source)
+- Xcode Command Line Tools: `xcode-select --install`
 
 ### Building & Running
 
@@ -25,31 +25,44 @@ A macOS menu bar app that sends notifications when your bus, tram, or metro is a
    ```bash
    git clone <your-repo>
    cd ruter-widget
-   swift build -c release
+   make build
    ```
 
 2. **Run the App**:
 
    ```bash
-   .build/release/RuterWidget
+   make run
    ```
 
-3. **Setup**:
+3. **Install to Applications** (optional):
+
+   ```bash
+   make install
+   ```
+
+4. **Setup**:
    - Click the bus icon in your menu bar
-   - Add your stop IDs (see "Finding Stop IDs" below)
+   - **Search stops by name** - Just type "jernbanetorget" or any stop name
+   - **Or manually enter stop IDs** (click "Enter Stop ID Manually")
    - Set notification lead time (default: 5 minutes)
    - Test with "Test Notification" button
 
-### Finding Stop IDs
+### Adding Stops - Two Ways
 
-Stop IDs follow the format `NSR:StopPlace:XXXXX`. You can find them:
+**🔍 Method 1: Search by Name (Recommended)**
 
-1. **Entur.org**: Search for your stop and copy the ID from the URL
-2. **Ruter App**: Look in stop details
-3. **Common Examples**:
-   - `NSR:StopPlace:58366` - Jernbanetorget (Oslo Central)
-   - `NSR:StopPlace:58249` - Nationaltheatret
-   - `NSR:StopPlace:6275` - Stortinget
+- Simply type the stop name (e.g., "jernbanetorget", "stortinget")
+- Select from the search results
+- Much easier than finding IDs!
+
+**🆔 Method 2: Manual Stop ID Entry**
+
+- Click "Enter Stop ID Manually"
+- Stop IDs follow format `NSR:StopPlace:XXXXX`
+- Common examples:
+  - `NSR:StopPlace:58366` - Jernbanetorget (Oslo Central)
+  - `NSR:StopPlace:58249` - Nationaltheatret
+  - `NSR:StopPlace:6275` - Stortinget
 
 ## 🔧 How It Works
 
