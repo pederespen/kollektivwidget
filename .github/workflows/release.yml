@@ -5,6 +5,10 @@ on:
     branches:
       - main  # Trigger on every push to main branch
 
+permissions:
+  contents: write
+  pull-requests: read
+
 jobs:
   build-and-release:
     runs-on: macos-latest
@@ -43,48 +47,44 @@ jobs:
         echo "COMMIT_SHORT=${COMMIT_SHORT}" >> $GITHUB_OUTPUT
       
     - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: v${{ steps.get_version.outputs.VERSION }}
-        release_name: KollektivWidget v${{ steps.get_version.outputs.VERSION }}
-        body: |
-          ## KollektivWidget v${{ steps.get_version.outputs.VERSION }}
-          
-          **Build #${{ steps.get_version.outputs.BUILD_NUMBER }}** (commit: ${{ steps.get_version.outputs.COMMIT_SHORT }})
-          
-          A macOS menu bar app for Norwegian public transport departures.
-          
-          ### Installation
-          1. Download the DMG file below
-          2. Open the DMG and drag KollektivWidget.app to Applications
-          3. Launch from Applications folder
-          4. Grant notification permissions when prompted
-          
-          ### Features
-          - Real-time departure information for all Norwegian public transport
-          - Customizable notification timing
-          - Dark mode support
-          - Menu bar integration
-          
-          ### System Requirements
-          - macOS 13.0 or later
-          - Internet connection for real-time data
-          
-          ---
-          *This release was automatically generated from the latest commit on main.*
-          
-        draft: false
-        prerelease: false
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        # Create release notes
+        cat > release_notes.md << EOF
+        ## KollektivWidget v${{ steps.get_version.outputs.VERSION }}
         
-    - name: Upload DMG Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./build/KollektivWidget.dmg
-        asset_name: KollektivWidget-v${{ steps.get_version.outputs.VERSION }}.dmg
-        asset_content_type: application/octet-stream
+        **Build #${{ steps.get_version.outputs.BUILD_NUMBER }}** (commit: ${{ steps.get_version.outputs.COMMIT_SHORT }})
+        
+        A macOS menu bar app for Norwegian public transport departures.
+        
+        ### Installation
+        1. Download the DMG file below
+        2. Open the DMG and drag KollektivWidget.app to Applications
+        3. Launch from Applications folder
+        4. Grant notification permissions when prompted
+        
+        ### Features
+        - Real-time departure information for all Norwegian public transport
+        - Customizable notification timing
+        - Dark mode support
+        - Menu bar integration
+        
+        ### System Requirements
+        - macOS 13.0 or later
+        - Internet connection for real-time data
+        
+        ---
+        *This release was automatically generated from the latest commit on main.*
+        EOF
+        
+        # Delete existing release/tag if it exists
+        gh release delete v${{ steps.get_version.outputs.VERSION }} --yes || true
+        git tag -d v${{ steps.get_version.outputs.VERSION }} || true
+        git push origin :refs/tags/v${{ steps.get_version.outputs.VERSION }} || true
+        
+        # Create new release with DMG
+        gh release create v${{ steps.get_version.outputs.VERSION }} \
+          --title "KollektivWidget v${{ steps.get_version.outputs.VERSION }}" \
+          --notes-file release_notes.md \
+          ./build/KollektivWidget.dmg#"KollektivWidget-v${{ steps.get_version.outputs.VERSION }}.dmg"
