@@ -93,6 +93,9 @@ struct ContentView: View {
         }
         .padding()
         .frame(width: 460, height: 280)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
         .onAppear {
             loadSettings()
             Task { await refreshAllDepartures() }
@@ -149,9 +152,10 @@ struct ContentView: View {
                             Text("\(minutes)m")
                                 .font(.headline)
                                 .monospacedDigit()
+                                .foregroundColor(.white)
                                 .padding(.vertical, 6)
                                 .padding(.horizontal, 10)
-                                .background(Color.blue.opacity(0.15))
+                                .background(Color.blue)
                                 .cornerRadius(8)
                         }
                         Spacer()
@@ -162,13 +166,17 @@ struct ContentView: View {
                 }
             }
             .padding(8)
-            .background(Color.gray.opacity(0.06))
+            .background(Color.blue.opacity(0.05))
             .cornerRadius(8)
 
         }
         .padding(10)
-        .background(Color.gray.opacity(0.05))
+        .background(Color.gray.opacity(0.02))
         .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+        )
     }
 
     // MARK: - Add Route Flow
@@ -271,7 +279,7 @@ struct ContentView: View {
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(.vertical, 6)
                                         .padding(.horizontal, 8)
-                                        .background(Color.gray.opacity(0.06))
+                                        .background(Color.blue.opacity(0.08))
                                         .cornerRadius(6)
                                     }
                                     .buttonStyle(PlainButtonStyle())
