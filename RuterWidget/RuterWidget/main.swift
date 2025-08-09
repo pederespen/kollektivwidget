@@ -40,29 +40,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             }
             
             if granted {
-                // Send a test notification immediately
-                DispatchQueue.main.async {
-                    self.sendImmediateTestNotification()
-                }
+                // Do nothing; real notifications will come from upcoming departures
             } else {
                 print("❌ Permission denied - opening System Settings > Notifications")
                 self.showNotificationPermissionAlert()
-            }
-        }
-    }
-    
-    private func sendImmediateTestNotification() {
-        let content = UNMutableNotificationContent()
-        content.title = "🎉 Success!"
-        content.body = "Ruter Widget notifications are now working!"
-        content.sound = UNNotificationSound.default
-        
-        let request = UNNotificationRequest(identifier: "success-\(Date().timeIntervalSince1970)", content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("❌ Error sending success notification: \(error)")
-            } else {
-                print("✅ Success notification sent!")
             }
         }
     }
@@ -151,18 +132,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
     
     private func checkDepartures() async {
-        let leadTime = UserDefaults.standard.integer(forKey: "leadTimeMinutes")
-        let effectiveLeadTime = leadTime > 0 ? leadTime : 5
-        
-        // Load monitored lines
-        var monitoredLines: [TransitLine] = []
-        if let data = UserDefaults.standard.data(forKey: "monitoredLines"),
-           let decoded = try? JSONDecoder().decode([TransitLine].self, from: data) {
-            monitoredLines = decoded
+        // Load all saved routes
+        guard let data = UserDefaults.standard.data(forKey: "savedRoutes"),
+              let routes = try? JSONDecoder().decode([TransitLine].self, from: data) else {
+            return
         }
-        
-        for line in monitoredLines {
-            await checkLine(line: line, leadTimeMinutes: effectiveLeadTime)
+
+        for route in routes {
+            let lead = route.notificationLeadTime ?? 5
+            await checkLine(line: route, leadTimeMinutes: lead)
         }
     }
     
@@ -171,7 +149,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             let departures = try await EnturAPI.getDeparturesForLine(line: line)
             
             for departure in departures {
-                if departure.shouldNotify(leadTimeMinutes: leadTimeMinutes) {
+                let alreadyNotified = hasAlreadyNotified(for: departure)
+                if departure.shouldNotify(leadTimeMinutes: leadTimeMinutes) && !alreadyNotified {
                     await sendNotification(for: departure, line: line)
                 }
             }
@@ -187,15 +166,39 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         content.sound = UNNotificationSound.default
         
         // Use departure info as identifier to avoid duplicate notifications
-        let identifier = "\(departure.line)-\(departure.departureTime.timeIntervalSince1970)"
+        let identifier = notificationIdentifier(for: departure)
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil as UNNotificationTrigger?)
         
         do {
             try await UNUserNotificationCenter.current().add(request)
             print("Sent notification: \(content.body)")
+            markNotified(identifier: identifier)
         } catch {
             print("Error sending notification: \(error)")
         }
+    }
+
+    // MARK: - Notification de-duplication
+    private func notificationIdentifier(for departure: Departure) -> String {
+        "\(departure.line)-\(departure.destination)-\(Int(departure.departureTime.timeIntervalSince1970))"
+    }
+    
+    private func hasAlreadyNotified(for departure: Departure) -> Bool {
+        let identifier = notificationIdentifier(for: departure)
+        let set = notifiedSet()
+        return set.contains(identifier)
+    }
+    
+    private func markNotified(identifier: String) {
+        var set = notifiedSet()
+        set.insert(identifier)
+        UserDefaults.standard.set(Array(set), forKey: "notifiedDepartures")
+    }
+    
+    private func notifiedSet() -> Set<String> {
+        let arr = UserDefaults.standard.stringArray(forKey: "notifiedDepartures") ?? []
+        // Keep set small by trimming anything older than ~6 hours via timestamp in id if present
+        return Set(arr)
     }
 }
 

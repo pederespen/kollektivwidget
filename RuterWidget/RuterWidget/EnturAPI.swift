@@ -216,7 +216,9 @@ struct EnturAPI {
                     lineName: call.serviceJourney.line.name,
                     destination: call.destinationDisplay.frontText,
                     transportMode: call.serviceJourney.line.transportMode,
-                    transportSubmode: call.serviceJourney.line.transportSubmode
+                    transportSubmode: call.serviceJourney.line.transportSubmode,
+                    notificationsEnabled: false,
+                    notificationLeadTime: 5
                 )
                 
                 lines.append(line)
@@ -311,6 +313,8 @@ struct TransitLine: Identifiable, Codable {
     let destination: String
     let transportMode: String
     let transportSubmode: String
+    var notificationsEnabled: Bool?
+    var notificationLeadTime: Int?
     
     var displayName: String {
         "\(transportEmoji) \(lineCode) to \(destination)"
@@ -330,4 +334,6 @@ struct TransitLine: Identifiable, Codable {
             return "🚌"
         }
     }
+
+    var effectiveLeadTimeMinutes: Int { notificationLeadTime ?? 5 }
 }

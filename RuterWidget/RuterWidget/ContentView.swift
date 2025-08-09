@@ -3,53 +3,199 @@ import UserNotifications
 import os.log
 
 struct ContentView: View {
+    // Filtering tabs
+    private enum TransportModeTab: String, CaseIterable, Identifiable {
+        case all, metro, tram, bus, train, ferry
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .all: return "All"
+            case .metro: return "Metro"
+            case .tram: return "Tram"
+            case .bus: return "Bus"
+            case .train: return "Train"
+            case .ferry: return "Ferry"
+            }
+        }
+        func matches(line: TransitLine) -> Bool {
+            guard self != .all else { return true }
+            return line.transportMode.lowercased() == self.rawValue
+        }
+    }
+    // Saved routes state
+    @State private var savedRoutes: [TransitLine] = []
+    @State private var routeDepartures: [String: [Departure]] = [:]
+    @State private var isRefreshingAll = false
+    @State private var loadingRouteIds: Set<String> = []
+    @State private var lastUpdated: Date? = nil
+
+    // Add Route sheet state
+    @State private var isPresentingAddRoute = false
     @State private var searchQuery = ""
     @State private var searchResults: [StopSearchResult] = []
     @State private var isSearching = false
     @State private var selectedStop: StopSearchResult?
     @State private var availableLines: [TransitLine] = []
     @State private var isLoadingLines = false
-    @State private var leadTimeMinutes = 5
-    @State private var monitoredLines: [TransitLine] = []
     @State private var searchTask: Task<Void, Never>?
+    @State private var selectedAddTab: TransportModeTab = .all
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
+            HStack {
             Text("🚌 Ruter Widget")
                 .font(.title2)
                 .fontWeight(.bold)
-            
-            // Step 1: Search for stops
-            if selectedStop == nil {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("1. Search for a Stop")
+                Spacer()
+                Button(action: { Task { await refreshAllDepartures() } }) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help("Refresh all routes")
+                Button("Add Route") { isPresentingAddRoute = true }
+                    .buttonStyle(.borderedProminent)
+            }
+
+            if savedRoutes.isEmpty {
+                VStack(spacing: 8) {
+                    Text("No routes added yet")
+                        .foregroundColor(.secondary)
+                    Text("Click Add Route to get started")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(savedRoutes) { route in
+                            routeRow(route)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            HStack(spacing: 12) {
+                Text("Updated: \(lastUpdatedText())")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Button("Quit") { NSApplication.shared.terminate(nil) }
+                    .foregroundColor(.red)
+            }
+        }
+        .padding()
+        .frame(width: 460, height: 560)
+        .onAppear {
+            loadSettings()
+            Task { await refreshAllDepartures() }
+        }
+        .sheet(isPresented: $isPresentingAddRoute, onDismiss: {
+            Task { await refreshAllDepartures() }
+        }) {
+            addRouteSheet
+                .frame(width: 460, height: 560)
+                .padding()
+        }
+        .onReceive(Timer.publish(every: 15, on: .main, in: .common).autoconnect()) { _ in
+            Task { await refreshAllDepartures() }
+        }
+    }
+
+    // MARK: - Route Row
+    private func routeRow(_ route: TransitLine) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(route.displayName)
                         .font(.headline)
-                    
+                    Text("from \(route.stopName)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Button(action: { removeRoute(route) }) {
+                    Image(systemName: "trash")
+                }
+                .foregroundColor(.red)
+                .buttonStyle(.borderless)
+            }
+
+            // Next departures as compact minute cards
+            let deps = routeDepartures[route.id] ?? []
+            VStack(alignment: .leading, spacing: 6) {
+                if deps.isEmpty {
+                    Text("No upcoming departures found")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    HStack(spacing: 8) {
+                        ForEach(Array(deps.prefix(3).enumerated()), id: \.offset) { _, dep in
+                            let minutes = max(dep.minutesUntilDeparture(), 0)
+                            Text("\(minutes)m")
+                                .font(.headline)
+                                .monospacedDigit()
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 10)
+                                .background(Color.blue.opacity(0.15))
+                                .cornerRadius(8)
+                        }
+                        Spacer()
+                        Button(action: { Task { await refreshDepartures(for: route) } }) { Image(systemName: "arrow.clockwise") }
+                            .buttonStyle(.borderless)
+                    }
+                }
+            }
+            .padding(8)
+            .background(Color.gray.opacity(0.06))
+            .cornerRadius(8)
+
+            // Per-route notification lead time
+            HStack {
+                Text("Notify before:")
+                    .font(.subheadline)
+                Spacer()
+                Stepper("\(effectiveLeadTime(for: route)) min", onIncrement: {
+                    updateLeadTime(for: route, to: min(effectiveLeadTime(for: route) + 1, 30))
+                }, onDecrement: {
+                    updateLeadTime(for: route, to: max(effectiveLeadTime(for: route) - 1, 1))
+                })
+                .fixedSize()
+            }
+        }
+        .padding(10)
+        .background(Color.gray.opacity(0.05))
+        .cornerRadius(8)
+    }
+
+    // MARK: - Add Route Flow
+    private var addRouteSheet: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("Add Route")
+                    .font(.headline)
+                Spacer()
+                Button("Close") { isPresentingAddRoute = false }
+                    .buttonStyle(.borderless)
+            }
+
+            if selectedStop == nil {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("1. Search for a Stop")
+                        .font(.subheadline)
                     HStack {
                         TextField("Search stops (e.g., \"jernbanetorget\")", text: $searchQuery)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .onChange(of: searchQuery) { _ in
-                                searchStopsWithDebounce()
-                            }
-                        
-                        if isSearching {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        }
+                            .onChange(of: searchQuery) { _ in searchStopsWithDebounce() }
+                        if isSearching { ProgressView().scaleEffect(0.8) }
                     }
-                    
-                    // Search results
                     if !searchResults.isEmpty {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 4) {
                                 ForEach(searchResults) { result in
-                                    Button(action: {
-                                        selectStop(result)
-                                    }) {
+                                    Button(action: { selectStop(result) }) {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(result.name)
-                                                .font(.body)
-                                                .foregroundColor(.primary)
                                             Text(result.label)
                                                 .font(.caption)
                                                 .foregroundColor(.secondary)
@@ -64,25 +210,15 @@ struct ContentView: View {
                                 }
                             }
                         }
-                        .frame(maxHeight: 150)
+                        .frame(maxHeight: 240)
                     }
                 }
-            }
-            
-            // Step 2: Show selected stop and available lines
-            if let stop = selectedStop {
-                VStack(alignment: .leading, spacing: 10) {
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        VStack(alignment: .leading) {
-                            Text("2. Lines from \(stop.name)")
-                                .font(.headline)
-                            Text("Select lines to monitor")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        
+                        Text("2. Choose a line from \(selectedStop?.name ?? "")")
+                            .font(.subheadline)
                         Spacer()
-                        
                         Button("Change Stop") {
                             selectedStop = nil
                             availableLines = []
@@ -90,119 +226,47 @@ struct ContentView: View {
                             searchResults = []
                         }
                         .font(.caption)
-                        .foregroundColor(.blue)
                     }
-                    
                     if isLoadingLines {
-                        HStack {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                            Text("Loading lines...")
-                        }
+                        HStack { ProgressView().scaleEffect(0.8); Text("Loading lines...") }
                     } else if !availableLines.isEmpty {
+                        let addTabs = tabsForAvailableLines()
+                        if addTabs.count > 1 {
+                            Picker("", selection: $selectedAddTab) {
+                                ForEach(addTabs) { tab in
+                                    Text(tab.title).tag(tab)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .onAppear { if !addTabs.contains(selectedAddTab) { selectedAddTab = .all } }
+                        } else {
+                            Color.clear.frame(height: 1).onAppear { selectedAddTab = .all }
+                        }
+                        
                         ScrollView {
                             VStack(alignment: .leading, spacing: 6) {
-                                ForEach(availableLines) { line in
-                                    HStack {
-                                        Button(action: {
-                                            toggleLineMonitoring(line)
-                                        }) {
+                                ForEach(availableLines.filter { selectedAddTab.matches(line: $0) }) { line in
+                                    Button(action: { chooseLine(line) }) {
                                             HStack {
-                                                Image(systemName: isLineMonitored(line) ? "checkmark.circle.fill" : "circle")
-                                                    .foregroundColor(isLineMonitored(line) ? .green : .gray)
-                                                
                                                 Text(line.displayName)
-                                                    .font(.body)
-                                                    .foregroundColor(.primary)
-                                                
                                                 Spacer()
-                                            }
-                                            .padding(.vertical, 4)
-                                            .padding(.horizontal, 8)
-                                            .background(isLineMonitored(line) ? Color.green.opacity(0.1) : Color.gray.opacity(0.05))
-                                            .cornerRadius(6)
+                                            Image(systemName: "plus.circle")
                                         }
-                                        .buttonStyle(PlainButtonStyle())
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.vertical, 6)
+                                        .padding(.horizontal, 8)
+                                        .background(Color.gray.opacity(0.06))
+                                        .cornerRadius(6)
                                     }
+                                    .buttonStyle(PlainButtonStyle())
                                 }
                             }
                         }
-                        .frame(maxHeight: 200)
+                        .frame(maxHeight: 280)
                     }
                 }
             }
-            
-            // Step 3: Show monitored lines
-            if !monitoredLines.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("3. Monitored Lines (\(monitoredLines.count))")
-                        .font(.headline)
-                    
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(monitoredLines) { line in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(line.displayName)
-                                            .font(.body)
-                                        Text("from \(line.stopName)")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    Button("Remove") {
-                                        removeMonitoredLine(line)
-                                    }
-                                    .font(.caption)
-                                    .foregroundColor(.red)
-                                }
-                                .padding(.vertical, 4)
-                                .padding(.horizontal, 8)
-                                .background(Color.gray.opacity(0.05))
-                                .cornerRadius(6)
-                            }
-                        }
-                    }
-                    .frame(maxHeight: 120)
-                }
-            }
-            
             Spacer()
-            
-            // Settings and controls
-            VStack(spacing: 12) {
-                HStack {
-                    Text("Notification Lead Time:")
-                        .font(.subheadline)
-                    Spacer()
-                    Stepper("\(leadTimeMinutes) min", value: $leadTimeMinutes, in: 1...30)
-                        .fixedSize()
-                }
-                
-                HStack(spacing: 12) {
-                    Button("Test Notification") {
-                        sendTestNotification()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    
-                    Spacer()
-                    
-                    Button("Quit") {
-                        NSApplication.shared.terminate(nil)
-                    }
-                    .foregroundColor(.red)
-                }
-            }
-        }
-        .padding()
-        .frame(width: 420, height: 600)
-        .onAppear {
-            loadSettings()
-        }
-        .onChange(of: leadTimeMinutes) { _ in
-            saveSettings()
         }
     }
     
@@ -214,17 +278,10 @@ struct ContentView: View {
         
         Task {
             do {
-                os_log("🌐 Calling API for lines from %{public}@", log: OSLog.default, type: .default, stop.id)
                 let lines = try await EnturAPI.getAvailableLines(stopId: stop.id, stopName: stop.name)
-                os_log("✅ Got %d lines from API", log: OSLog.default, type: .default, lines.count)
-                for line in lines {
-                    os_log("  - %{public}@", log: OSLog.default, type: .default, line.displayName)
-                }
                 await MainActor.run {
-                    os_log("🎯 About to update UI with %d lines", log: OSLog.default, type: .default, lines.count)
                     self.availableLines = lines
                     self.isLoadingLines = false
-                    os_log("✅ UI updated, availableLines.count = %d", log: OSLog.default, type: .default, self.availableLines.count)
                 }
             } catch {
                 await MainActor.run {
@@ -236,42 +293,120 @@ struct ContentView: View {
         }
     }
     
-    private func toggleLineMonitoring(_ line: TransitLine) {
-        if let index = monitoredLines.firstIndex(where: { $0.id == line.id }) {
-            monitoredLines.remove(at: index)
-        } else {
-            monitoredLines.append(line)
+    private func chooseLine(_ line: TransitLine) {
+        // Prevent duplicates
+        guard !savedRoutes.contains(where: { $0.id == line.id }) else { return }
+        var newLine = line
+        if newLine.notificationLeadTime == nil { newLine.notificationLeadTime = 5 }
+        savedRoutes.append(newLine)
+        saveSettings()
+        Task { await refreshDepartures(for: newLine) }
+        // Reset and close sheet so the user sees the added route immediately
+        selectedStop = nil
+        availableLines = []
+        searchQuery = ""
+        searchResults = []
+        isPresentingAddRoute = false
+    }
+
+    private func removeRoute(_ route: TransitLine) {
+        savedRoutes.removeAll { $0.id == route.id }
+        routeDepartures.removeValue(forKey: route.id)
+        saveSettings()
+    }
+
+    private func updateLeadTime(for route: TransitLine, to minutes: Int) {
+        guard let idx = savedRoutes.firstIndex(where: { $0.id == route.id }) else { return }
+        savedRoutes[idx].notificationLeadTime = minutes
+        saveSettings()
+    }
+
+    // MARK: - Persistence
+    private func loadSettings() {
+        if let data = UserDefaults.standard.data(forKey: "savedRoutes"),
+           let decoded = try? JSONDecoder().decode([TransitLine].self, from: data) {
+            savedRoutes = decoded
+        } else if let legacy = UserDefaults.standard.data(forKey: "monitoredLines"),
+                  let decoded = try? JSONDecoder().decode([TransitLine].self, from: legacy) {
+            savedRoutes = decoded
+            saveSettings()
         }
-        saveSettings()
     }
-    
-    private func isLineMonitored(_ line: TransitLine) -> Bool {
-        monitoredLines.contains { $0.id == line.id }
+
+    private func saveSettings() {
+        if let encoded = try? JSONEncoder().encode(savedRoutes) {
+            UserDefaults.standard.set(encoded, forKey: "savedRoutes")
+        }
     }
-    
-    private func removeMonitoredLine(_ line: TransitLine) {
-        monitoredLines.removeAll { $0.id == line.id }
-        saveSettings()
+
+    // MARK: - Departures
+    private func refreshAllDepartures() async {
+        isRefreshingAll = true
+        defer { isRefreshingAll = false }
+        for route in savedRoutes {
+            await refreshDepartures(for: route)
+        }
+        await MainActor.run { self.lastUpdated = Date() }
+    }
+
+    private func refreshDepartures(for route: TransitLine) async {
+        do {
+            let deps = try await EnturAPI.getDeparturesForLine(line: route)
+            await MainActor.run {
+                self.routeDepartures[route.id] = Array(deps.prefix(3))
+            }
+        } catch {
+            await MainActor.run { self.routeDepartures[route.id] = [] }
+            print("Error fetching departures: \(error)")
+        }
+    }
+
+    // MARK: - Test Notification
+    private func sendTestNotification() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            DispatchQueue.main.async {
+                if settings.authorizationStatus == .authorized {
+                    let content = UNMutableNotificationContent()
+                    content.title = "🚌 Ruter Widget"
+                    content.body = "Test notification: Bus 74 to Mortensrud leaves in 5 minutes!"
+                    content.sound = UNNotificationSound.default
+                    let request = UNNotificationRequest(
+                        identifier: "test-\(Date().timeIntervalSince1970)",
+                        content: content,
+                        trigger: nil as UNNotificationTrigger?
+                    )
+                    UNUserNotificationCenter.current().add(request) { error in
+                        if let error = error {
+                            print("❌ Error sending test notification: \(error)")
+                        } else {
+                            print("✅ Test notification sent successfully")
+                        }
+                    }
+                } else {
+                    let alert = NSAlert()
+                    alert.messageText = "Notifications Not Allowed"
+                    alert.informativeText = "Please enable notifications for Ruter Widget in System Preferences > Notifications to receive departure alerts."
+                    alert.addButton(withTitle: "Open Settings")
+                    alert.addButton(withTitle: "Cancel")
+                    if alert.runModal() == .alertFirstButtonReturn {
+                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.notifications")!)
+                    }
+                }
+            }
+        }
     }
     
     private func searchStopsWithDebounce() {
-        // Cancel previous search task
         searchTask?.cancel()
-        
         guard !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             searchResults = []
             isSearching = false
             return
         }
-        
         isSearching = true
-        
-        // Create new debounced search task
         searchTask = Task {
-            try? await Task.sleep(nanoseconds: 500_000_000) // 500ms delay
-            
+            try? await Task.sleep(nanoseconds: 500_000_000)
             guard !Task.isCancelled else { return }
-            
             do {
                 let results = try await EnturAPI.searchStops(query: searchQuery)
                 await MainActor.run {
@@ -290,55 +425,51 @@ struct ContentView: View {
         }
     }
     
-    private func loadSettings() {
-        // Load monitored lines
-        if let data = UserDefaults.standard.data(forKey: "monitoredLines"),
-           let decoded = try? JSONDecoder().decode([TransitLine].self, from: data) {
-            monitoredLines = decoded
-        }
-        leadTimeMinutes = UserDefaults.standard.object(forKey: "leadTimeMinutes") as? Int ?? 5
+    private func effectiveLeadTime(for route: TransitLine) -> Int {
+        route.notificationLeadTime ?? 5
     }
-    
-    private func saveSettings() {
-        if let encoded = try? JSONEncoder().encode(monitoredLines) {
-            UserDefaults.standard.set(encoded, forKey: "monitoredLines")
-        }
-        UserDefaults.standard.set(leadTimeMinutes, forKey: "leadTimeMinutes")
+
+    private func lastUpdatedText() -> String {
+        guard let ts = lastUpdated else { return "—" }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: ts)
     }
-    
-    private func sendTestNotification() {
-        // First check if we have permission
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            DispatchQueue.main.async {
-                if settings.authorizationStatus == .authorized {
-                    let content = UNMutableNotificationContent()
-                    content.title = "🚌 Ruter Widget"
-                    content.body = "Test notification: Bus 74 to Mortensrud leaves in 5 minutes!"
-                    content.sound = UNNotificationSound.default
-                    
-                    let request = UNNotificationRequest(identifier: "test-\(Date().timeIntervalSince1970)", content: content, trigger: nil as UNNotificationTrigger?)
-                    UNUserNotificationCenter.current().add(request) { error in
-                        if let error = error {
-                            print("❌ Error sending test notification: \(error)")
-                        } else {
-                            print("✅ Test notification sent successfully")
-                        }
-                    }
-                } else {
-                    print("❌ Notifications not authorized. Status: \(settings.authorizationStatus.rawValue)")
-                    
-                    // Show alert to user
-                    let alert = NSAlert()
-                    alert.messageText = "Notifications Not Allowed"
-                    alert.informativeText = "Please enable notifications for Ruter Widget in System Preferences > Notifications to receive departure alerts."
-                    alert.addButton(withTitle: "Open Settings")
-                    alert.addButton(withTitle: "Cancel")
-                    
-                    if alert.runModal() == .alertFirstButtonReturn {
-                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.notifications")!)
-                    }
-                }
-            }
+
+    // MARK: - Tabs helpers
+    private func tabsForSavedRoutes() -> [TransportModeTab] {
+        var presentModes: Set<TransportModeTab> = []
+        for route in savedRoutes {
+            if let tab = tabFor(modeString: route.transportMode) { presentModes.insert(tab) }
         }
+        var result: [TransportModeTab] = [.all]
+        result.append(contentsOf: orderedTabs().filter { presentModes.contains($0) })
+        return result
+    }
+
+    private func tabsForAvailableLines() -> [TransportModeTab] {
+        var presentModes: Set<TransportModeTab> = []
+        for line in availableLines {
+            if let tab = tabFor(modeString: line.transportMode) { presentModes.insert(tab) }
+        }
+        var result: [TransportModeTab] = [.all]
+        result.append(contentsOf: orderedTabs().filter { presentModes.contains($0) })
+        return result
+    }
+
+    private func tabFor(modeString: String) -> TransportModeTab? {
+        switch modeString.lowercased() {
+        case "metro": return .metro
+        case "tram": return .tram
+        case "bus": return .bus
+        case "train": return .train
+        case "ferry": return .ferry
+        default: return nil
+        }
+    }
+
+    private func orderedTabs() -> [TransportModeTab] {
+        [.metro, .tram, .bus, .train, .ferry]
     }
 }
