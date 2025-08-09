@@ -12,6 +12,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     var statusBarItem: NSStatusItem!
     var popover: NSPopover!
     var timer: Timer?
+    var contentView: ContentView?
     
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Set up status bar item first
@@ -89,7 +90,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         
         // Create popover
         popover = NSPopover()
-        popover.contentViewController = NSHostingController(rootView: ContentView())
+        contentView = ContentView(updateMenuBarIcon: { [weak self] isEnabled in
+            self?.updateMenuBarIcon(isNotificationEnabled: isEnabled)
+        })
+        popover.contentViewController = NSHostingController(rootView: contentView!)
         popover.behavior = .transient
         popover.animates = true
     }
@@ -103,6 +107,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 NSApp.activate(ignoringOtherApps: true)
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             }
+        }
+    }
+    
+    func updateMenuBarIcon(isNotificationEnabled: Bool) {
+        if let button = statusBarItem.button {
+            // Use different symbols that definitely exist
+            let iconName = isNotificationEnabled ? "bus" : "bell.slash"
+            button.image = NSImage(systemSymbolName: iconName, accessibilityDescription: "Ruter Widget")
         }
     }
     

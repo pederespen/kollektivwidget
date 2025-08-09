@@ -4,6 +4,9 @@ import os.log
 import ServiceManagement
 
 struct ContentView: View {
+    // Callback for updating menu bar icon
+    var updateMenuBarIcon: ((Bool) -> Void)?
+    
     // Filtering tabs
     private enum TransportModeTab: String, CaseIterable, Identifiable {
         case all, metro, tram, bus, train, ferry
@@ -40,6 +43,9 @@ struct ContentView: View {
     // Weekday notification settings (1=Sunday, 2=Monday, ..., 7=Saturday)
     @State private var selectedWeekdays: Set<Int> = [2, 3, 4, 5, 6] // Monday-Friday default
     
+    // Notification status for UI indicators
+    @State private var notificationStatus: NotificationStatus = .enabled
+    
     // Saved routes state
     @State private var savedRoutes: [TransitLine] = []
     @State private var routeDepartures: [String: [Departure]] = [:]
@@ -72,19 +78,41 @@ struct ContentView: View {
                 .font(.title2)
                 .fontWeight(.bold)
                 Spacer()
-                Button(action: { isPresentingSettings = true }) {
-                    Image(systemName: "gear")
-                }
-                .help("Settings")
-                Button(action: { Task { await refreshAllDepartures() } }) {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .help("Refresh all routes")
                 Button(action: { isPresentingAddRoute = true }) {
                     Image(systemName: "plus")
                 }
                 .help("Add Route")
+                Button(action: { Task { await refreshAllDepartures() } }) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help("Refresh all routes")
+                Button(action: { isPresentingSettings = true }) {
+                    Image(systemName: "gear")
+                }
+                .help("Settings")
             }
+            
+            // Notification status indicator
+            HStack(spacing: 8) {
+                Image(systemName: notificationStatus.iconName)
+                    .foregroundColor(notificationStatus.statusColor)
+                    .font(.system(size: 12, weight: .medium))
+                Text(notificationStatus.statusText)
+                    .font(.caption)
+                    .foregroundColor(notificationStatus.statusColor)
+                Spacer()
+                if !notificationStatus.isEnabled {
+                    Button("Settings") {
+                        isPresentingSettings = true
+                    }
+                    .font(.caption)
+                    .buttonStyle(.borderless)
+                }
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .background(notificationStatus.statusColor.opacity(0.1))
+            .cornerRadius(6)
 
             if savedRoutes.isEmpty {
                 VStack(spacing: 8) {
@@ -125,6 +153,7 @@ struct ContentView: View {
             loadSettings()
             loadWeekdaySettings()
             checkLaunchAtLoginStatus()
+            updateNotificationStatus()
             Task { await refreshAllDepartures() }
         }
         .sheet(isPresented: $isPresentingAddRoute, onDismiss: {
@@ -143,10 +172,11 @@ struct ContentView: View {
         }
         .sheet(isPresented: $isPresentingSettings) {
             settingsSheet
-                .frame(width: 400, height: 450)
+                .frame(width: 400)
                 .padding()
                 .background(isDarkMode ? Color(red: 0.1, green: 0.1, blue: 0.1) : Color.white)
                 .preferredColorScheme(isDarkMode ? .dark : .light)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .alert("Delete Route", isPresented: Binding<Bool>(
             get: { routeToDelete != nil },
@@ -165,8 +195,15 @@ struct ContentView: View {
             }
         }
         .onReceive(Timer.publish(every: 15, on: .main, in: .common).autoconnect()) { _ in
+            updateNotificationStatus()
             Task { await refreshAllDepartures() }
         }
+        .onChange(of: notificationsEnabled) { _, _ in updateNotificationStatus() }
+        .onChange(of: notificationStartHour) { _, _ in updateNotificationStatus() }
+        .onChange(of: notificationStartMinute) { _, _ in updateNotificationStatus() }
+        .onChange(of: notificationEndHour) { _, _ in updateNotificationStatus() }
+        .onChange(of: notificationEndMinute) { _, _ in updateNotificationStatus() }
+        .onChange(of: selectedWeekdays) { _, _ in updateNotificationStatus() }
     }
 
     // MARK: - Route Row
@@ -609,10 +646,13 @@ struct ContentView: View {
     // MARK: - Launch at Login
     private func checkLaunchAtLoginStatus() {
         if #available(macOS 13.0, *) {
-            // Check current status using SMAppService
+            // Check current status using SMAppService and sync our UI
             let isRegistered = SMAppService.mainApp.status == .enabled
+            // Only update UI if there's a mismatch (avoid infinite loops)
             if launchAtLogin != isRegistered {
-                launchAtLogin = isRegistered
+                // Don't automatically revert - let user's last action stand
+                // This prevents the toggle from fighting with the system state
+                print("📍 Launch at login status mismatch: UI=\(launchAtLogin), System=\(isRegistered)")
             }
         }
         // For older macOS versions, we rely on the stored preference
@@ -627,16 +667,24 @@ struct ContentView: View {
                     if SMAppService.mainApp.status == .notRegistered {
                         try SMAppService.mainApp.register()
                         print("✅ Registered app for launch at login")
+                    } else {
+                        print("📍 App already registered for launch at login")
                     }
                 } else {
-                    try SMAppService.mainApp.unregister()
-                    print("❌ Unregistered app from launch at login")
+                    if SMAppService.mainApp.status == .enabled {
+                        try SMAppService.mainApp.unregister()
+                        print("✅ Unregistered app from launch at login")
+                    } else {
+                        print("📍 App was not registered for launch at login")
+                    }
                 }
             } catch {
                 print("❌ Failed to \(enabled ? "enable" : "disable") launch at login: \(error)")
-                // Revert the toggle if the operation failed
-                DispatchQueue.main.async {
-                    launchAtLogin = !enabled
+                // Only revert if it's a critical error, not permission issues
+                if (error as NSError).code != 1 { // Don't revert for permission denied
+                    DispatchQueue.main.async {
+                        self.launchAtLogin = !enabled
+                    }
                 }
             }
         } else {
@@ -646,9 +694,9 @@ struct ContentView: View {
                 print("✅ \(enabled ? "Enabled" : "Disabled") launch at login (legacy)")
             } else {
                 print("❌ Failed to \(enabled ? "enable" : "disable") launch at login (legacy)")
-                // Revert the toggle if the operation failed
+                // Only revert on actual failures, not permission issues
                 DispatchQueue.main.async {
-                    launchAtLogin = !enabled
+                    self.launchAtLogin = !enabled
                 }
             }
         }
@@ -846,6 +894,88 @@ struct ContentView: View {
         case .train: return "train.side.front.car"
         case .ferry: return "ferry"
         case .all: return "square.grid.2x2"
+        }
+    }
+    
+    // MARK: - Notification Status
+    private func updateNotificationStatus() {
+        notificationStatus = getCurrentNotificationStatus()
+        updateMenuBarIcon?(notificationStatus.isEnabled)
+    }
+    
+    private func getCurrentNotificationStatus() -> NotificationStatus {
+        // Check if notifications are globally disabled
+        guard notificationsEnabled else {
+            return .disabled(reason: "Notifications disabled in settings")
+        }
+        
+        // Get current time and weekday
+        let now = Date()
+        let calendar = Calendar.current
+        let currentHour = calendar.component(.hour, from: now)
+        let currentMinute = calendar.component(.minute, from: now)
+        let currentWeekday = calendar.component(.weekday, from: now)
+        
+        // Check weekday settings
+        if !selectedWeekdays.contains(currentWeekday) {
+            let weekdayName = calendar.weekdaySymbols[currentWeekday - 1]
+            return .disabled(reason: "Disabled on \(weekdayName)")
+        }
+        
+        // Check time settings
+        let currentMinutesSinceMidnight = currentHour * 60 + currentMinute
+        let startMinutesSinceMidnight = notificationStartHour * 60 + notificationStartMinute
+        let endMinutesSinceMidnight = notificationEndHour * 60 + notificationEndMinute
+        
+        let isWithinActiveHours: Bool
+        if startMinutesSinceMidnight <= endMinutesSinceMidnight {
+            isWithinActiveHours = currentMinutesSinceMidnight >= startMinutesSinceMidnight && 
+                                  currentMinutesSinceMidnight <= endMinutesSinceMidnight
+        } else {
+            isWithinActiveHours = currentMinutesSinceMidnight >= startMinutesSinceMidnight || 
+                                  currentMinutesSinceMidnight <= endMinutesSinceMidnight
+        }
+        
+        if !isWithinActiveHours {
+            let startTime = String(format: "%02d:%02d", notificationStartHour, notificationStartMinute)
+            let endTime = String(format: "%02d:%02d", notificationEndHour, notificationEndMinute)
+            return .disabled(reason: "Outside active hours (\(startTime) - \(endTime))")
+        }
+        
+        return .enabled
+    }
+}
+
+// MARK: - Notification Status Types
+enum NotificationStatus: Equatable {
+    case enabled
+    case disabled(reason: String)
+    
+    var isEnabled: Bool {
+        switch self {
+        case .enabled: return true
+        case .disabled: return false
+        }
+    }
+    
+    var iconName: String {
+        switch self {
+        case .enabled: return "bus"
+        case .disabled: return "bell.slash"
+        }
+    }
+    
+    var statusText: String {
+        switch self {
+        case .enabled: return "Notifications active"
+        case .disabled(let reason): return reason
+        }
+    }
+    
+    var statusColor: Color {
+        switch self {
+        case .enabled: return .green
+        case .disabled: return .orange
         }
     }
 }
