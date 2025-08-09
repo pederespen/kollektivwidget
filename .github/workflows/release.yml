@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+        
+    - name: Install Command Line Tools
+      run: |
+        sudo xcode-select --install || true
+        
+    - name: Build DMG
+      run: |
+        make release
+        
+    - name: Get version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: KollektivWidget ${{ steps.get_version.outputs.VERSION }}
+        body: |
+          ## KollektivWidget ${{ steps.get_version.outputs.VERSION }}
+          
+          A macOS menu bar app for Norwegian public transport departures.
+          
+          ### Installation
+          1. Download the DMG file below
+          2. Open the DMG and drag KollektivWidget.app to Applications
+          3. Launch from Applications folder
+          4. Grant notification permissions when prompted
+          
+          ### Features
+          - Real-time departure information for all Norwegian public transport
+          - Customizable notification timing
+          - Dark mode support
+          - Menu bar integration
+          
+          ### System Requirements
+          - macOS 13.0 or later
+          - Internet connection for real-time data
+          
+        draft: false
+        prerelease: false
+        
+    - name: Upload DMG Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./build/KollektivWidget.dmg
+        asset_name: KollektivWidget-${{ steps.get_version.outputs.VERSION }}.dmg
+        asset_content_type: application/octet-stream

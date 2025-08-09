@@ -10,7 +10,7 @@ ICONSET_DIR = $(BUILD_DIR)/AppIcon.iconset
 # Swift compiler flags
 SWIFT_FLAGS = -O -Xlinker -rpath -Xlinker @executable_path/../Frameworks
 
-.PHONY: all clean run build install
+.PHONY: all clean run build install dmg release
 
 all: build
 
@@ -84,6 +84,15 @@ reinstall: clean install
 verify-sign:
 	@/usr/bin/codesign --display --verbose=2 /Applications/$(APP_NAME).app | cat
 
+dmg: build
+	@echo "💿 Creating DMG package..."
+	@./create-dmg.sh
+	@echo "✅ DMG package ready for distribution!"
+
+release: dmg
+	@echo "🎉 Release package created!"
+	@echo "📦 Upload build/$(APP_NAME).dmg to GitHub releases"
+
 debug:
 	@echo "🐛 Building debug version..."
 	@mkdir -p $(MACOS_DIR)
@@ -117,5 +126,5 @@ debug:
 			echo "✅ Generated $(RESOURCES_DIR)/AppIcon.icns (debug)"; \
 		fi; \
 	fi
-	@swiftc -g -o $(MACOS_DIR)/$(APP_NAME) RuterWidget/RuterWidget/*.swift
+	@swiftc -g -o $(MACOS_DIR)/$(APP_NAME) KollektivWidget/*.swift
 	@echo "✅ Debug build complete!"
