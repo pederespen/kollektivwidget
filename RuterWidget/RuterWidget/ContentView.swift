@@ -45,20 +45,21 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 14) {
             HStack {
-                Text("🚌 Ruter Widget")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                Spacer()
-                if isRefreshingAll {
-                    ProgressView().scaleEffect(0.9)
-                } else {
-                    Button(action: { Task { await refreshAllDepartures() } }) {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .help("Refresh all routes")
+                HStack(spacing: 6) {
+                    Image(systemName: "bus")
+                    Text("Ruter Widget")
                 }
-                Button("Add Route") { isPresentingAddRoute = true }
-                    .buttonStyle(.borderedProminent)
+                .font(.title2)
+                .fontWeight(.bold)
+                Spacer()
+                Button(action: { Task { await refreshAllDepartures() } }) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help("Refresh all routes")
+                Button(action: { isPresentingAddRoute = true }) {
+                    Image(systemName: "plus")
+                }
+                .help("Add Route")
             }
 
             if savedRoutes.isEmpty {
@@ -91,7 +92,7 @@ struct ContentView: View {
             }
         }
         .padding()
-        .frame(width: 460, height: 560)
+        .frame(width: 460, height: 280)
         .onAppear {
             loadSettings()
             Task { await refreshAllDepartures() }
@@ -100,7 +101,7 @@ struct ContentView: View {
             Task { await refreshAllDepartures() }
         }) {
             addRouteSheet
-                .frame(width: 460, height: 560)
+                .frame(width: 460, height: 320)
                 .padding()
         }
         .sheet(item: $routeBeingEdited) { route in
@@ -116,15 +117,22 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(route.displayName)
+                    HStack(spacing: 6) {
+                        Image(systemName: symbolName(for: route.transportMode))
+                        Text(route.displayName)
+                    }
                         .font(.headline)
                     Text("from \(route.stopName)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                Button("Edit") { routeBeingEdited = route }
-                    .buttonStyle(.borderless)
+                Button(action: { routeBeingEdited = route }) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 16, weight: .medium))
+                }
+                .buttonStyle(.borderless)
+                .help("Edit route")
             }
 
             // Next departures as compact minute cards
@@ -229,13 +237,13 @@ struct ContentView: View {
                         if addTabs.count > 1 {
                             Picker("", selection: $selectedAddTab) {
                                 ForEach(addTabs) { tab in
-                                    Text(tab.title).tag(tab)
+                                    Image(systemName: symbolName(for: tab)).tag(tab)
                                 }
                             }
                             .pickerStyle(.segmented)
-                            .onAppear { if !addTabs.contains(selectedAddTab) { selectedAddTab = .all } }
-                        } else {
-                            Color.clear.frame(height: 1).onAppear { selectedAddTab = .all }
+                            .onAppear { if !addTabs.contains(selectedAddTab), let first = addTabs.first { selectedAddTab = first } }
+                        } else if let only = addTabs.first {
+                            Color.clear.frame(height: 1).onAppear { selectedAddTab = only }
                         }
 
                         HStack {
@@ -254,10 +262,11 @@ struct ContentView: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 ForEach(availableLines.filter { selectedAddTab.matches(line: $0) }) { line in
                                     Button(action: { chooseLine(line) }) {
-                                            HStack {
-                                                Text(line.displayName)
-                                                Spacer()
-                                            Image(systemName: "plus.circle")
+                                        HStack(spacing: 10) {
+                                            Image(systemName: symbolName(for: line.transportMode))
+                                            Text(line.displayName)
+                                            Spacer()
+                                            Image(systemName: "plus")
                                         }
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(.vertical, 6)
@@ -493,9 +502,7 @@ struct ContentView: View {
         for line in availableLines {
             if let tab = tabFor(modeString: line.transportMode) { presentModes.insert(tab) }
         }
-        var result: [TransportModeTab] = [.all]
-        result.append(contentsOf: orderedTabs().filter { presentModes.contains($0) })
-        return result
+        return orderedTabs().filter { presentModes.contains($0) }
     }
 
     private func tabFor(modeString: String) -> TransportModeTab? {
@@ -511,6 +518,28 @@ struct ContentView: View {
 
     private func orderedTabs() -> [TransportModeTab] {
         [.metro, .tram, .bus, .train, .ferry]
+    }
+
+    private func symbolName(for transportMode: String) -> String {
+        switch transportMode.lowercased() {
+        case "bus": return "bus"
+        case "tram": return "tram"
+        case "metro": return "tram.fill.tunnel"
+        case "train": return "train.side.front.car"
+        case "ferry": return "ferry"
+        default: return "bus"
+        }
+    }
+
+    private func symbolName(for tab: TransportModeTab) -> String {
+        switch tab {
+        case .bus: return "bus"
+        case .tram: return "tram"
+        case .metro: return "tram.fill.tunnel"
+        case .train: return "train.side.front.car"
+        case .ferry: return "ferry"
+        case .all: return "square.grid.2x2"
+        }
     }
 }
 

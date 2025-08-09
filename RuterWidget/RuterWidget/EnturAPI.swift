@@ -271,18 +271,14 @@ struct Departure {
     let transportMode: String
     let stopName: String
     
-    var transportEmoji: String {
+    var transportSymbolName: String {
         switch transportMode.lowercased() {
-        case "bus":
-            return "🚌"
-        case "tram":
-            return "🚋"
-        case "metro":
-            return "🚇"
-        case "train":
-            return "🚆"
-        default:
-            return "🚌"
+        case "bus": return "bus"
+        case "tram": return "tram"
+        case "metro": return "tram.fill.tunnel"
+        case "train": return "train.side.front.car"
+        case "ferry": return "ferry"
+        default: return "bus"
         }
     }
     
@@ -317,21 +313,17 @@ struct TransitLine: Identifiable, Codable {
     var notificationLeadTime: Int?
     
     var displayName: String {
-        "\(transportEmoji) \(lineCode) to \(destination)"
+        "\(lineCode) to \(destination)"
     }
     
-    var transportEmoji: String {
+    var transportSymbolName: String {
         switch transportMode.lowercased() {
-        case "bus":
-            return "🚌"
-        case "tram":
-            return "🚋"
-        case "metro":
-            return "🚇"
-        case "train":
-            return "🚆"
-        default:
-            return "🚌"
+        case "bus": return "bus"
+        case "tram": return "tram"
+        case "metro": return "tram.fill.tunnel"
+        case "train": return "train.side.front.car"
+        case "ferry": return "ferry"
+        default: return "bus"
         }
     }
 

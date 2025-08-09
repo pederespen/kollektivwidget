@@ -161,9 +161,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     
     private func sendNotification(for departure: Departure, line: TransitLine) async {
         let content = UNMutableNotificationContent()
-        content.title = "\(line.transportEmoji) Ruter Departure"
+        content.title = "Ruter Departure"
         content.body = "Line \(departure.line) to \(departure.destination) leaves in \(departure.minutesUntilDeparture()) minutes from \(line.stopName)"
-        content.sound = UNNotificationSound.default
+        content.sound = UNNotificationSound(named: UNNotificationSoundName("Bell.aiff"))
         
         // Use departure info as identifier to avoid duplicate notifications
         let identifier = notificationIdentifier(for: departure)
