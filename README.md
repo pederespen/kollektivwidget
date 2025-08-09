@@ -2,7 +2,7 @@
 
 A macOS menu bar app that notifies you before your bus, tram, metro, or train departs anywhere in Norway.
 
-Uses the Entur API to provide real-time departure information for all Norwegian public transport operators.
+Uses the Entur API to provide real-time departure information.
 
 ## Installation
 
