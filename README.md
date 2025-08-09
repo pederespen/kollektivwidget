@@ -42,14 +42,6 @@ make clean          # Clean build artifacts
 make reinstall      # Clean rebuild and install
 ```
 
-### Code Structure
-
-- `KollektivWidget/main.swift` - App entry point
-- `KollektivWidget/ContentView.swift` - Main UI and logic
-- `KollektivWidget/EnturAPI.swift` - API integration for transit data
-- `KollektivWidget/Info.plist` - App configuration
-- `Makefile` - Build system
-
 ## License
 
 MIT
