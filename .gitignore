@@ -1,3 +1,8 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
 # Dependencies
 node_modules/
 npm-debug.log*
