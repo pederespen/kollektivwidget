@@ -142,6 +142,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
     
     private func checkLine(line: TransitLine, leadTimeMinutes: Int) async {
+        // Check if notifications are enabled and within active hours
+        guard shouldSendNotifications() else { return }
+        
         do {
             let departures = try await EnturAPI.getDeparturesForLine(line: line)
             
@@ -154,6 +157,68 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         } catch {
             print("Error fetching departures for line \(line.displayName): \(error)")
         }
+    }
+    
+    private func shouldSendNotifications() -> Bool {
+        // Check if notifications are enabled (default to true if not set)
+        let notificationsEnabled = UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true
+        guard notificationsEnabled else {
+            print("🔕 Notifications disabled - skipping")
+            return false
+        }
+        
+        // Get notification time settings (default to 8:00 - 17:00)
+        let startHour = UserDefaults.standard.object(forKey: "notificationStartHour") as? Int ?? 8
+        let startMinute = UserDefaults.standard.object(forKey: "notificationStartMinute") as? Int ?? 0
+        let endHour = UserDefaults.standard.object(forKey: "notificationEndHour") as? Int ?? 17
+        let endMinute = UserDefaults.standard.object(forKey: "notificationEndMinute") as? Int ?? 0
+        
+        // Get current time and weekday
+        let now = Date()
+        let calendar = Calendar.current
+        let currentHour = calendar.component(.hour, from: now)
+        let currentMinute = calendar.component(.minute, from: now)
+        let currentWeekday = calendar.component(.weekday, from: now)
+        
+        // Check if notifications are enabled for current weekday
+        if let weekdayData = UserDefaults.standard.data(forKey: "selectedWeekdays"),
+           let selectedWeekdays = try? JSONDecoder().decode([Int].self, from: weekdayData) {
+            if !selectedWeekdays.contains(currentWeekday) {
+                let weekdayName = calendar.weekdaySymbols[currentWeekday - 1]
+                print("🗓️ Notifications disabled for \(weekdayName) - skipping")
+                return false
+            }
+        } else {
+            // Default to Monday-Friday if no settings found
+            let defaultWeekdays = [2, 3, 4, 5, 6] // Monday-Friday
+            if !defaultWeekdays.contains(currentWeekday) {
+                let weekdayName = calendar.weekdaySymbols[currentWeekday - 1]
+                print("🗓️ Notifications disabled for \(weekdayName) (default) - skipping")
+                return false
+            }
+        }
+        
+        // Convert times to minutes since midnight for easier comparison
+        let currentMinutesSinceMidnight = currentHour * 60 + currentMinute
+        let startMinutesSinceMidnight = startHour * 60 + startMinute
+        let endMinutesSinceMidnight = endHour * 60 + endMinute
+        
+        let isWithinActiveHours: Bool
+        if startMinutesSinceMidnight <= endMinutesSinceMidnight {
+            // Normal case: start time is before end time (e.g., 6:00 to 23:00)
+            isWithinActiveHours = currentMinutesSinceMidnight >= startMinutesSinceMidnight && 
+                                  currentMinutesSinceMidnight <= endMinutesSinceMidnight
+        } else {
+            // Overnight case: start time is after end time (e.g., 22:00 to 06:00)
+            isWithinActiveHours = currentMinutesSinceMidnight >= startMinutesSinceMidnight || 
+                                  currentMinutesSinceMidnight <= endMinutesSinceMidnight
+        }
+        
+        if !isWithinActiveHours {
+            print("🌙 Outside notification hours (\(String(format: "%02d:%02d", startHour, startMinute)) - \(String(format: "%02d:%02d", endHour, endMinute))) - skipping")
+        }
+        
+        return isWithinActiveHours
     }
     
     private func sendNotification(for departure: Departure, line: TransitLine) async {
@@ -177,7 +242,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     // MARK: - Notification de-duplication
     private func notificationIdentifier(for departure: Departure) -> String {
-        "\(departure.line)-\(departure.destination)-\(Int(departure.departureTime.timeIntervalSince1970))"
+        // Use tripId to ensure each specific departure only notifies once, even if delayed
+        "\(departure.tripId)-\(departure.line)-\(departure.destination)"
     }
     
     private func hasAlreadyNotified(for departure: Departure) -> Bool {
@@ -194,8 +260,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     
     private func notifiedSet() -> Set<String> {
         let arr = UserDefaults.standard.stringArray(forKey: "notifiedDepartures") ?? []
-        // Keep set small by trimming anything older than ~6 hours via timestamp in id if present
+        cleanupOldNotifications()
         return Set(arr)
+    }
+    
+    private func cleanupOldNotifications() {
+        let cleanupInterval: TimeInterval = 24 * 60 * 60 // 24 hours
+        let lastCleanup = UserDefaults.standard.double(forKey: "lastNotificationCleanup")
+        let now = Date().timeIntervalSince1970
+        
+        if now - lastCleanup > cleanupInterval {
+            // Clear all old notification records daily
+            UserDefaults.standard.removeObject(forKey: "notifiedDepartures")
+            UserDefaults.standard.set(now, forKey: "lastNotificationCleanup")
+            print("🧹 Cleaned up old notification records")
+        }
     }
 }
 

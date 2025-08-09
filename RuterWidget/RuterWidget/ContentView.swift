@@ -1,6 +1,7 @@
 import SwiftUI
 import UserNotifications
 import os.log
+import ServiceManagement
 
 struct ContentView: View {
     // Filtering tabs
@@ -22,6 +23,23 @@ struct ContentView: View {
             return line.transportMode.lowercased() == self.rawValue
         }
     }
+    
+    // Dark mode state
+    @AppStorage("isDarkMode") private var isDarkMode = false
+    
+    // Notification settings
+    @AppStorage("notificationsEnabled") private var notificationsEnabled = true
+    @AppStorage("notificationStartHour") private var notificationStartHour = 8
+    @AppStorage("notificationStartMinute") private var notificationStartMinute = 0
+    @AppStorage("notificationEndHour") private var notificationEndHour = 17
+    @AppStorage("notificationEndMinute") private var notificationEndMinute = 0
+    
+    // Launch at login setting
+    @AppStorage("launchAtLogin") private var launchAtLogin = false
+    
+    // Weekday notification settings (1=Sunday, 2=Monday, ..., 7=Saturday)
+    @State private var selectedWeekdays: Set<Int> = [2, 3, 4, 5, 6] // Monday-Friday default
+    
     // Saved routes state
     @State private var savedRoutes: [TransitLine] = []
     @State private var routeDepartures: [String: [Departure]] = [:]
@@ -42,6 +60,7 @@ struct ContentView: View {
     @State private var addLeadTime: Int = 5
     @State private var routeBeingEdited: TransitLine?
     @State private var routeToDelete: TransitLine?
+    @State private var isPresentingSettings = false
     
     var body: some View {
         VStack(spacing: 14) {
@@ -53,6 +72,10 @@ struct ContentView: View {
                 .font(.title2)
                 .fontWeight(.bold)
                 Spacer()
+                Button(action: { isPresentingSettings = true }) {
+                    Image(systemName: "gear")
+                }
+                .help("Settings")
                 Button(action: { Task { await refreshAllDepartures() } }) {
                     Image(systemName: "arrow.clockwise")
                 }
@@ -94,11 +117,14 @@ struct ContentView: View {
         }
         .padding()
         .frame(width: 460, height: 280)
-        .background(Color.white)
+        .background(isDarkMode ? Color(red: 0.1, green: 0.1, blue: 0.1) : Color.white)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
+        .preferredColorScheme(isDarkMode ? .dark : .light)
         .onAppear {
             loadSettings()
+            loadWeekdaySettings()
+            checkLaunchAtLoginStatus()
             Task { await refreshAllDepartures() }
         }
         .sheet(isPresented: $isPresentingAddRoute, onDismiss: {
@@ -107,9 +133,20 @@ struct ContentView: View {
             addRouteSheet
                 .frame(width: 460, height: 320)
                 .padding()
+                .background(isDarkMode ? Color(red: 0.1, green: 0.1, blue: 0.1) : Color.white)
+                .preferredColorScheme(isDarkMode ? .dark : .light)
         }
         .sheet(item: $routeBeingEdited) { route in
             editRouteSheet(route)
+                .background(isDarkMode ? Color(red: 0.1, green: 0.1, blue: 0.1) : Color.white)
+                .preferredColorScheme(isDarkMode ? .dark : .light)
+        }
+        .sheet(isPresented: $isPresentingSettings) {
+            settingsSheet
+                .frame(width: 400, height: 450)
+                .padding()
+                .background(isDarkMode ? Color(red: 0.1, green: 0.1, blue: 0.1) : Color.white)
+                .preferredColorScheme(isDarkMode ? .dark : .light)
         }
         .alert("Delete Route", isPresented: Binding<Bool>(
             get: { routeToDelete != nil },
@@ -186,7 +223,7 @@ struct ContentView: View {
                     HStack(spacing: 8) {
                         ForEach(Array(deps.prefix(3).enumerated()), id: \.offset) { _, dep in
                             let minutes = max(dep.minutesUntilDeparture(), 0)
-                            Text("\(minutes)m")
+                            Text(minutes == 0 ? "Now" : "\(minutes)m")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                                 .monospacedDigit()
@@ -209,11 +246,11 @@ struct ContentView: View {
 
         }
         .padding(8)
-        .background(Color(red: 0.98, green: 0.98, blue: 1.0))
+        .background(isDarkMode ? Color(red: 0.15, green: 0.15, blue: 0.15) : Color(red: 0.98, green: 0.98, blue: 1.0))
         .cornerRadius(6)
         .overlay(
             RoundedRectangle(cornerRadius: 6)
-                .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+                .stroke(Color.gray.opacity(isDarkMode ? 0.3 : 0.15), lineWidth: 1)
         )
     }
 
@@ -391,6 +428,230 @@ struct ContentView: View {
         )
         .frame(width: 360, height: 220)
         .padding()
+    }
+
+    // MARK: - Settings Sheet
+    private var settingsSheet: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("Settings")
+                    .font(.headline)
+                Spacer()
+                Button("Close") { isPresentingSettings = false }
+                    .buttonStyle(.borderless)
+            }
+            
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Dark Mode")
+                        .font(.subheadline)
+                    Spacer()
+                    Toggle("", isOn: $isDarkMode)
+                        .toggleStyle(SwitchToggleStyle())
+                }
+                
+                Divider()
+                
+                HStack {
+                    Text("Launch at Login")
+                        .font(.subheadline)
+                    Spacer()
+                    Toggle("", isOn: $launchAtLogin)
+                        .toggleStyle(SwitchToggleStyle())
+                        .onChange(of: launchAtLogin) { _, newValue in
+                            setLaunchAtLogin(enabled: newValue)
+                        }
+                }
+                
+                Divider()
+                
+                HStack {
+                    Text("Notifications")
+                        .font(.subheadline)
+                    Spacer()
+                    Toggle("", isOn: $notificationsEnabled)
+                        .toggleStyle(SwitchToggleStyle())
+                }
+                
+                if notificationsEnabled {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Active Hours")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        HStack {
+                            Text("From:")
+                                .font(.caption)
+                            
+                            HStack(spacing: 4) {
+                                Picker("", selection: $notificationStartHour) {
+                                    ForEach(0..<24, id: \.self) { hour in
+                                        Text(String(format: "%02d", hour)).tag(hour)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .frame(width: 60)
+                                
+                                Text(":")
+                                
+                                Picker("", selection: $notificationStartMinute) {
+                                    ForEach([0, 15, 30, 45], id: \.self) { minute in
+                                        Text(String(format: "%02d", minute)).tag(minute)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .frame(width: 60)
+                            }
+                            
+                            Spacer()
+                            
+                            Text("To:")
+                                .font(.caption)
+                            
+                            HStack(spacing: 4) {
+                                Picker("", selection: $notificationEndHour) {
+                                    ForEach(0..<24, id: \.self) { hour in
+                                        Text(String(format: "%02d", hour)).tag(hour)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .frame(width: 60)
+                                
+                                Text(":")
+                                
+                                Picker("", selection: $notificationEndMinute) {
+                                    ForEach([0, 15, 30, 45], id: \.self) { minute in
+                                        Text(String(format: "%02d", minute)).tag(minute)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .frame(width: 60)
+                            }
+                        }
+                    }
+                    .padding(.leading, 16)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Active Days")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 8) {
+                            ForEach(weekdayData, id: \.value) { weekday in
+                                Button(action: { toggleWeekday(weekday.value) }) {
+                                    Text(weekday.short)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(selectedWeekdays.contains(weekday.value) ? .white : .primary)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 6)
+                                        .background(selectedWeekdays.contains(weekday.value) ? Color.blue : Color.gray.opacity(0.2))
+                                        .cornerRadius(6)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(.leading, 16)
+                }
+                
+                Divider()
+                
+                HStack {
+                    Text("App Version")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text("1.0.0")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+        }
+    }
+    
+    // MARK: - Weekday Management
+    private var weekdayData: [(short: String, value: Int)] {
+        [
+            ("Mon", 2), ("Tue", 3), ("Wed", 4), ("Thu", 5),
+            ("Fri", 6), ("Sat", 7), ("Sun", 1)
+        ]
+    }
+    
+    private func toggleWeekday(_ weekday: Int) {
+        if selectedWeekdays.contains(weekday) {
+            selectedWeekdays.remove(weekday)
+        } else {
+            selectedWeekdays.insert(weekday)
+        }
+        saveWeekdaySettings()
+    }
+    
+    private func loadWeekdaySettings() {
+        if let data = UserDefaults.standard.data(forKey: "selectedWeekdays"),
+           let weekdays = try? JSONDecoder().decode([Int].self, from: data) {
+            selectedWeekdays = Set(weekdays)
+        } else {
+            // Default to Monday-Friday
+            selectedWeekdays = [2, 3, 4, 5, 6]
+            saveWeekdaySettings()
+        }
+    }
+    
+    private func saveWeekdaySettings() {
+        if let data = try? JSONEncoder().encode(Array(selectedWeekdays)) {
+            UserDefaults.standard.set(data, forKey: "selectedWeekdays")
+        }
+    }
+    
+    // MARK: - Launch at Login
+    private func checkLaunchAtLoginStatus() {
+        if #available(macOS 13.0, *) {
+            // Check current status using SMAppService
+            let isRegistered = SMAppService.mainApp.status == .enabled
+            if launchAtLogin != isRegistered {
+                launchAtLogin = isRegistered
+            }
+        }
+        // For older macOS versions, we rely on the stored preference
+        // since there's no reliable way to check the current status
+    }
+    
+    private func setLaunchAtLogin(enabled: Bool) {
+        if #available(macOS 13.0, *) {
+            // Use modern SMAppService for macOS 13+
+            do {
+                if enabled {
+                    if SMAppService.mainApp.status == .notRegistered {
+                        try SMAppService.mainApp.register()
+                        print("✅ Registered app for launch at login")
+                    }
+                } else {
+                    try SMAppService.mainApp.unregister()
+                    print("❌ Unregistered app from launch at login")
+                }
+            } catch {
+                print("❌ Failed to \(enabled ? "enable" : "disable") launch at login: \(error)")
+                // Revert the toggle if the operation failed
+                DispatchQueue.main.async {
+                    launchAtLogin = !enabled
+                }
+            }
+        } else {
+            // Fallback for older macOS versions
+            let success = SMLoginItemSetEnabled("com.pespen.ruterwidget" as CFString, enabled)
+            if success {
+                print("✅ \(enabled ? "Enabled" : "Disabled") launch at login (legacy)")
+            } else {
+                print("❌ Failed to \(enabled ? "enable" : "disable") launch at login (legacy)")
+                // Revert the toggle if the operation failed
+                DispatchQueue.main.async {
+                    launchAtLogin = !enabled
+                }
+            }
+        }
     }
 
     @MainActor

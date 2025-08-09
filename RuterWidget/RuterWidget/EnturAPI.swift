@@ -26,16 +26,17 @@ struct EnturAPI {
                 let frontText: String
             }
             
-            struct ServiceJourney: Codable {
-                let line: Line
-                
-                struct Line: Codable {
-                    let publicCode: String
-                    let name: String
-                    let transportMode: String
-                    let transportSubmode: String
-                }
+                    struct ServiceJourney: Codable {
+            let id: String
+            let line: Line
+            
+            struct Line: Codable {
+                let publicCode: String
+                let name: String
+                let transportMode: String
+                let transportSubmode: String
             }
+        }
         }
     }
     
@@ -51,6 +52,7 @@ struct EnturAPI {
                         frontText
                     }
                     serviceJourney {
+                        id
                         line {
                             publicCode
                             name
@@ -85,6 +87,7 @@ struct EnturAPI {
             }
             
             return Departure(
+                tripId: call.serviceJourney.id,
                 line: call.serviceJourney.line.publicCode,
                 destination: call.destinationDisplay.frontText,
                 departureTime: departureDate,
@@ -160,6 +163,7 @@ struct EnturAPI {
                         frontText
                     }
                     serviceJourney {
+                        id
                         line {
                             publicCode
                             name
@@ -265,6 +269,7 @@ struct EnturAPI {
 }
 
 struct Departure {
+    let tripId: String
     let line: String
     let destination: String
     let departureTime: Date
