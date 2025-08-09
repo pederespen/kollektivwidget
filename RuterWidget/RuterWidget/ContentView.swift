@@ -41,6 +41,7 @@ struct ContentView: View {
     @State private var selectedAddTab: TransportModeTab = .all
     @State private var addLeadTime: Int = 5
     @State private var routeBeingEdited: TransitLine?
+    @State private var routeToDelete: TransitLine?
     
     var body: some View {
         VStack(spacing: 14) {
@@ -73,7 +74,7 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 8) {
                         ForEach(savedRoutes) { route in
                             routeRow(route)
                         }
@@ -110,6 +111,22 @@ struct ContentView: View {
         .sheet(item: $routeBeingEdited) { route in
             editRouteSheet(route)
         }
+        .alert("Delete Route", isPresented: Binding<Bool>(
+            get: { routeToDelete != nil },
+            set: { if !$0 { routeToDelete = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { routeToDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let route = routeToDelete {
+                    removeRoute(route)
+                    routeToDelete = nil
+                }
+            }
+        } message: {
+            if let route = routeToDelete {
+                Text("Are you sure you want to delete the route \"\(route.displayName)\" from \(route.stopName)?")
+            }
+        }
         .onReceive(Timer.publish(every: 15, on: .main, in: .common).autoconnect()) { _ in
             Task { await refreshAllDepartures() }
         }
@@ -117,25 +134,45 @@ struct ContentView: View {
 
     // MARK: - Route Row
     private func routeRow(_ route: TransitLine) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 4) {
                         Image(systemName: symbolName(for: route.transportMode))
+                            .font(.system(size: 14))
                         Text(route.displayName)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
                     }
-                        .font(.headline)
                     Text("from \(route.stopName)")
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                Button(action: { routeBeingEdited = route }) {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 16, weight: .medium))
+                HStack(spacing: 2) {
+                    Image(systemName: "bell.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                    Text("\(effectiveLeadTime(for: route))min")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
                 }
-                .buttonStyle(.borderless)
-                .help("Edit route")
+                HStack(spacing: 4) {
+                    Button(action: { routeBeingEdited = route }) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Edit route")
+                    
+                    Button(action: { routeToDelete = route }) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Delete route")
+                }
             }
 
             // Next departures as compact minute cards
@@ -150,13 +187,14 @@ struct ContentView: View {
                         ForEach(Array(deps.prefix(3).enumerated()), id: \.offset) { _, dep in
                             let minutes = max(dep.minutesUntilDeparture(), 0)
                             Text("\(minutes)m")
-                                .font(.headline)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
                                 .monospacedDigit()
                                 .foregroundColor(.white)
-                                .padding(.vertical, 6)
-                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 8)
                                 .background(Color.blue)
-                                .cornerRadius(8)
+                                .cornerRadius(6)
                         }
                         Spacer()
                         if loadingRouteIds.contains(route.id) {
@@ -165,16 +203,16 @@ struct ContentView: View {
                     }
                 }
             }
-            .padding(8)
+            .padding(6)
             .background(Color.blue.opacity(0.05))
-            .cornerRadius(8)
+            .cornerRadius(6)
 
         }
-        .padding(10)
-        .background(Color.gray.opacity(0.02))
-        .cornerRadius(8)
+        .padding(8)
+        .background(Color(red: 0.98, green: 0.98, blue: 1.0))
+        .cornerRadius(6)
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 6)
                 .stroke(Color.gray.opacity(0.15), lineWidth: 1)
         )
     }
@@ -593,8 +631,6 @@ struct EditRouteSheetView: View {
             Spacer()
 
             HStack {
-                Button("Delete") { onDelete() }
-                    .foregroundColor(.red)
                 Spacer()
                 Button("Cancel") { onClose() }
                 Button("Save") { onSave(leadTime) }

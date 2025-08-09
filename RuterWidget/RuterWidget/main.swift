@@ -90,7 +90,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // Create popover
         popover = NSPopover()
         popover.contentViewController = NSHostingController(rootView: ContentView())
-        popover.behavior = .applicationDefined
+        popover.behavior = .transient
         popover.animates = true
     }
     
@@ -101,23 +101,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             } else {
                 // Activate app and show popover
                 NSApp.activate(ignoringOtherApps: true)
-                // Position popover at top of screen instead of relative to button
-                if let screen = NSScreen.main {
-                    let screenFrame = screen.visibleFrame
-                    let popoverSize = NSSize(width: 460, height: 280)
-                    let popoverFrame = NSRect(
-                        x: screenFrame.maxX - popoverSize.width - 20,
-                        y: screenFrame.maxY - popoverSize.height - 10,
-                        width: popoverSize.width,
-                        height: popoverSize.height
-                    )
-                    popover.show(relativeTo: NSRect(origin: popoverFrame.origin, size: .zero), of: NSApp.keyWindow?.contentView ?? button, preferredEdge: .minY)
-                } else {
-                    popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-                }
-                
-                // Set up event monitor to close when clicking outside
-                setupEventMonitor()
+                popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             }
         }
     }
