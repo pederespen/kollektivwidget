@@ -6,20 +6,6 @@ Uses the Entur API to provide real-time departure information for all Norwegian 
 
 ## Installation
 
-### Download Release (Recommended)
-
-1. Download the latest `KollektivWidget-v*.zip` from [Releases](https://github.com/pederespen/kollektivwidget/releases)
-2. Extract the ZIP file and copy KollektivWidget.app to Applications
-3. **Important:** Right-click the app in Applications and select "Open" (don't double-click)
-4. Click "Open" when macOS asks if you're sure you want to open it
-5. Grant notification permissions when prompted
-
-> **Security Note:** You may see a warning that "Apple cannot verify KollektivWidget is free of malware." This is normal for unsigned apps. Using right-click → Open safely bypasses this warning.
-
-**System Requirements:** macOS 13.0 or later
-
-### Build from Source
-
 **Prerequisites:** macOS 13+ and Xcode Command Line Tools (`xcode-select --install`)
 
 ```bash
@@ -40,9 +26,10 @@ The app will build, install to `/Applications`, and launch automatically.
 ## Features
 
 - **Real-time departures** for all Norwegian public transport
-- **Notifications** with customizable timing
+- **Smart notifications** with customizable timing
+- **Dark mode** support
 - **Menu bar integration** for quick access
-- **Dark mode**
+- **Automatic refresh** of departure data
 
 ## Development
 
@@ -51,10 +38,17 @@ The app will build, install to `/Applications`, and launch automatically.
 ```bash
 make build          # Build the app bundle
 make run            # Build, install, and launch
-make zip            # Create distributable ZIP package
-make release        # Build and package for release
 make clean          # Clean build artifacts
+make reinstall      # Clean rebuild and install
 ```
+
+### Code Structure
+
+- `KollektivWidget/main.swift` - App entry point
+- `KollektivWidget/ContentView.swift` - Main UI and logic
+- `KollektivWidget/EnturAPI.swift` - API integration for transit data
+- `KollektivWidget/Info.plist` - App configuration
+- `Makefile` - Build system
 
 ## License
 

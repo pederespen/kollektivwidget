@@ -10,7 +10,7 @@ ICONSET_DIR = $(BUILD_DIR)/AppIcon.iconset
 # Swift compiler flags
 SWIFT_FLAGS = -O -Xlinker -rpath -Xlinker @executable_path/../Frameworks
 
-.PHONY: all clean run build install zip release
+.PHONY: all clean run build install
 
 all: build
 
@@ -84,14 +84,6 @@ reinstall: clean install
 verify-sign:
 	@/usr/bin/codesign --display --verbose=2 /Applications/$(APP_NAME).app | cat
 
-zip: build
-	@echo "📦 Creating ZIP package..."
-	@./create-zip.sh
-	@echo "✅ ZIP package ready for distribution!"
-
-release: zip
-	@echo "🎉 Release package created!"
-	@echo "📦 Upload build/$(APP_NAME).zip to GitHub releases"
 
 debug:
 	@echo "🐛 Building debug version..."
