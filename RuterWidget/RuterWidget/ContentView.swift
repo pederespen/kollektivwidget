@@ -39,18 +39,24 @@ struct ContentView: View {
     @State private var isLoadingLines = false
     @State private var searchTask: Task<Void, Never>?
     @State private var selectedAddTab: TransportModeTab = .all
+    @State private var addLeadTime: Int = 5
+    @State private var routeBeingEdited: TransitLine?
     
     var body: some View {
         VStack(spacing: 14) {
             HStack {
-            Text("🚌 Ruter Widget")
-                .font(.title2)
-                .fontWeight(.bold)
+                Text("🚌 Ruter Widget")
+                    .font(.title2)
+                    .fontWeight(.bold)
                 Spacer()
-                Button(action: { Task { await refreshAllDepartures() } }) {
-                    Image(systemName: "arrow.clockwise")
+                if isRefreshingAll {
+                    ProgressView().scaleEffect(0.9)
+                } else {
+                    Button(action: { Task { await refreshAllDepartures() } }) {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .help("Refresh all routes")
                 }
-                .help("Refresh all routes")
                 Button("Add Route") { isPresentingAddRoute = true }
                     .buttonStyle(.borderedProminent)
             }
@@ -97,6 +103,9 @@ struct ContentView: View {
                 .frame(width: 460, height: 560)
                 .padding()
         }
+        .sheet(item: $routeBeingEdited) { route in
+            editRouteSheet(route)
+        }
         .onReceive(Timer.publish(every: 15, on: .main, in: .common).autoconnect()) { _ in
             Task { await refreshAllDepartures() }
         }
@@ -114,11 +123,8 @@ struct ContentView: View {
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                Button(action: { removeRoute(route) }) {
-                    Image(systemName: "trash")
-                }
-                .foregroundColor(.red)
-                .buttonStyle(.borderless)
+                Button("Edit") { routeBeingEdited = route }
+                    .buttonStyle(.borderless)
             }
 
             // Next departures as compact minute cards
@@ -141,8 +147,9 @@ struct ContentView: View {
                                 .cornerRadius(8)
                         }
                         Spacer()
-                        Button(action: { Task { await refreshDepartures(for: route) } }) { Image(systemName: "arrow.clockwise") }
-                            .buttonStyle(.borderless)
+                        if loadingRouteIds.contains(route.id) {
+                            ProgressView().scaleEffect(0.8)
+                        }
                     }
                 }
             }
@@ -150,18 +157,6 @@ struct ContentView: View {
             .background(Color.gray.opacity(0.06))
             .cornerRadius(8)
 
-            // Per-route notification lead time
-            HStack {
-                Text("Notify before:")
-                    .font(.subheadline)
-                Spacer()
-                Stepper("\(effectiveLeadTime(for: route)) min", onIncrement: {
-                    updateLeadTime(for: route, to: min(effectiveLeadTime(for: route) + 1, 30))
-                }, onDecrement: {
-                    updateLeadTime(for: route, to: max(effectiveLeadTime(for: route) - 1, 1))
-                })
-                .fixedSize()
-            }
         }
         .padding(10)
         .background(Color.gray.opacity(0.05))
@@ -186,7 +181,7 @@ struct ContentView: View {
                     HStack {
                         TextField("Search stops (e.g., \"jernbanetorget\")", text: $searchQuery)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .onChange(of: searchQuery) { _ in searchStopsWithDebounce() }
+                            .onChange(of: searchQuery) { _, _ in searchStopsWithDebounce() }
                         if isSearching { ProgressView().scaleEffect(0.8) }
                     }
                     if !searchResults.isEmpty {
@@ -242,6 +237,18 @@ struct ContentView: View {
                         } else {
                             Color.clear.frame(height: 1).onAppear { selectedAddTab = .all }
                         }
+
+                        HStack {
+                            Text("Notify before:")
+                            Spacer()
+                            Stepper("\(addLeadTime) min", onIncrement: {
+                                addLeadTime = min(addLeadTime + 1, 30)
+                            }, onDecrement: {
+                                addLeadTime = max(addLeadTime - 1, 1)
+                            })
+                            .fixedSize()
+                        }
+                        .padding(.vertical, 4)
                         
                         ScrollView {
                             VStack(alignment: .leading, spacing: 6) {
@@ -268,8 +275,10 @@ struct ContentView: View {
             }
             Spacer()
         }
+        .onAppear { addLeadTime = 5 }
     }
     
+    @MainActor
     private func selectStop(_ stop: StopSearchResult) {
         os_log("🔍 Selecting stop: %{public}@ (%{public}@)", log: OSLog.default, type: .default, stop.name, stop.id)
         selectedStop = stop
@@ -293,11 +302,12 @@ struct ContentView: View {
         }
     }
     
+    @MainActor
     private func chooseLine(_ line: TransitLine) {
         // Prevent duplicates
         guard !savedRoutes.contains(where: { $0.id == line.id }) else { return }
         var newLine = line
-        if newLine.notificationLeadTime == nil { newLine.notificationLeadTime = 5 }
+        newLine.notificationLeadTime = addLeadTime
         savedRoutes.append(newLine)
         saveSettings()
         Task { await refreshDepartures(for: newLine) }
@@ -309,12 +319,33 @@ struct ContentView: View {
         isPresentingAddRoute = false
     }
 
+    // MARK: - Edit Route Sheet
+    private func editRouteSheet(_ route: TransitLine) -> some View {
+        EditRouteSheetView(
+            route: route,
+            initialLeadTime: effectiveLeadTime(for: route),
+            onSave: { minutes in
+                updateLeadTime(for: route, to: minutes)
+                routeBeingEdited = nil
+            },
+            onDelete: {
+                removeRoute(route)
+                routeBeingEdited = nil
+            },
+            onClose: { routeBeingEdited = nil }
+        )
+        .frame(width: 360, height: 220)
+        .padding()
+    }
+
+    @MainActor
     private func removeRoute(_ route: TransitLine) {
         savedRoutes.removeAll { $0.id == route.id }
         routeDepartures.removeValue(forKey: route.id)
         saveSettings()
     }
 
+    @MainActor
     private func updateLeadTime(for route: TransitLine, to minutes: Int) {
         guard let idx = savedRoutes.firstIndex(where: { $0.id == route.id }) else { return }
         savedRoutes[idx].notificationLeadTime = minutes
@@ -322,6 +353,7 @@ struct ContentView: View {
     }
 
     // MARK: - Persistence
+    @MainActor
     private func loadSettings() {
         if let data = UserDefaults.standard.data(forKey: "savedRoutes"),
            let decoded = try? JSONDecoder().decode([TransitLine].self, from: data) {
@@ -333,6 +365,7 @@ struct ContentView: View {
         }
     }
 
+    @MainActor
     private func saveSettings() {
         if let encoded = try? JSONEncoder().encode(savedRoutes) {
             UserDefaults.standard.set(encoded, forKey: "savedRoutes")
@@ -341,22 +374,28 @@ struct ContentView: View {
 
     // MARK: - Departures
     private func refreshAllDepartures() async {
-        isRefreshingAll = true
-        defer { isRefreshingAll = false }
-        for route in savedRoutes {
+        await MainActor.run { self.isRefreshingAll = true }
+        defer { Task { await MainActor.run { self.isRefreshingAll = false } } }
+        let routes = await MainActor.run { self.savedRoutes }
+        for route in routes {
             await refreshDepartures(for: route)
         }
         await MainActor.run { self.lastUpdated = Date() }
     }
 
     private func refreshDepartures(for route: TransitLine) async {
+        _ = await MainActor.run { self.loadingRouteIds.insert(route.id) }
         do {
             let deps = try await EnturAPI.getDeparturesForLine(line: route)
             await MainActor.run {
                 self.routeDepartures[route.id] = Array(deps.prefix(3))
+                self.loadingRouteIds.remove(route.id)
             }
         } catch {
-            await MainActor.run { self.routeDepartures[route.id] = [] }
+            await MainActor.run {
+                self.routeDepartures[route.id] = []
+                self.loadingRouteIds.remove(route.id)
+            }
             print("Error fetching departures: \(error)")
         }
     }
@@ -396,6 +435,7 @@ struct ContentView: View {
         }
     }
     
+    @MainActor
     private func searchStopsWithDebounce() {
         searchTask?.cancel()
         guard !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -432,8 +472,8 @@ struct ContentView: View {
     private func lastUpdatedText() -> String {
         guard let ts = lastUpdated else { return "—" }
         let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        formatter.timeStyle = .medium
         return formatter.string(from: ts)
     }
 
@@ -471,5 +511,59 @@ struct ContentView: View {
 
     private func orderedTabs() -> [TransportModeTab] {
         [.metro, .tram, .bus, .train, .ferry]
+    }
+}
+
+// MARK: - Edit Route Sheet View
+struct EditRouteSheetView: View {
+    let route: TransitLine
+    let initialLeadTime: Int
+    let onSave: (Int) -> Void
+    let onDelete: () -> Void
+    let onClose: () -> Void
+
+    @State private var leadTime: Int = 5
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("Edit Route")
+                    .font(.headline)
+                Spacer()
+                Button("Close") { onClose() }
+                    .buttonStyle(.borderless)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(route.displayName)
+                    .font(.headline)
+                Text("from \(route.stopName)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            HStack {
+                Text("Notify before:")
+                Spacer()
+                Stepper("\(leadTime) min", onIncrement: {
+                    leadTime = min(leadTime + 1, 30)
+                }, onDecrement: {
+                    leadTime = max(leadTime - 1, 1)
+                })
+                .fixedSize()
+            }
+
+            Spacer()
+
+            HStack {
+                Button("Delete") { onDelete() }
+                    .foregroundColor(.red)
+                Spacer()
+                Button("Cancel") { onClose() }
+                Button("Save") { onSave(leadTime) }
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .onAppear { leadTime = initialLeadTime }
     }
 }
