@@ -56,7 +56,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         DispatchQueue.main.async {
             let alert = NSAlert()
             alert.messageText = "Notifications Disabled"
-            alert.informativeText = "To receive departure notifications, please enable notifications for Ruter Widget in System Preferences > Notifications."
+            alert.informativeText = "To receive departure notifications, please enable notifications for KollektivWidget in System Preferences > Notifications."
             alert.addButton(withTitle: "Open System Preferences")
             alert.addButton(withTitle: "Cancel")
             
@@ -83,7 +83,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         statusBarItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let button = statusBarItem.button {
-            button.image = NSImage(systemSymbolName: "bus", accessibilityDescription: "Ruter Widget")
+            button.image = NSImage(systemSymbolName: "bus", accessibilityDescription: "KollektivWidget")
             button.action = #selector(togglePopover)
             button.target = self
         }
@@ -114,7 +114,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         if let button = statusBarItem.button {
             // Use different symbols that definitely exist
             let iconName = isNotificationEnabled ? "bus" : "bell.slash"
-            button.image = NSImage(systemSymbolName: iconName, accessibilityDescription: "Ruter Widget")
+            button.image = NSImage(systemSymbolName: iconName, accessibilityDescription: "KollektivWidget")
         }
     }
     
@@ -235,7 +235,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     
     private func sendNotification(for departure: Departure, line: TransitLine) async {
         let content = UNMutableNotificationContent()
-        content.title = "Ruter Departure"
+        content.title = "KollektivWidget"
         content.body = "Line \(departure.line) to \(departure.destination) leaves in \(departure.minutesUntilDeparture()) minutes from \(line.stopName)"
         content.sound = UNNotificationSound(named: UNNotificationSoundName("Bell.aiff"))
         

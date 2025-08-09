@@ -1,15 +1,16 @@
-# 🚌 Ruter Widget
+# 🚌 KollektivWidget
 
-A macOS menu bar app that notifies you before your bus, tram, metro, or train.
-Made to be used in anywhere in Norway that is supported by the Entur API.
+A macOS menu bar app that notifies you before your bus, tram, metro, or train departs anywhere in Norway.
+
+Uses the Entur API to provide real-time departure information for all Norwegian public transport operators.
 
 ## 🚀 Quick Start
 
 **Prerequisites:** macOS 13+ and Xcode Command Line Tools (`xcode-select --install`)
 
 ```bash
-git clone https://github.com/yourusername/ruter-widget
-cd ruter-widget
+git clone https://github.com/yourusername/kollektiv-widget
+cd kollektiv-widget
 make run
 ```
 

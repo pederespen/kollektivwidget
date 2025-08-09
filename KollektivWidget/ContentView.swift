@@ -73,7 +73,7 @@ struct ContentView: View {
             HStack {
                 HStack(spacing: 6) {
                     Image(systemName: "bus")
-                    Text("Ruter Widget")
+                    Text("KollektivWidget")
                 }
                 .font(.title2)
                 .fontWeight(.bold)
@@ -689,7 +689,7 @@ struct ContentView: View {
             }
         } else {
             // Fallback for older macOS versions
-            let success = SMLoginItemSetEnabled("com.pespen.ruterwidget" as CFString, enabled)
+            let success = SMLoginItemSetEnabled("com.pespen.kollektivwidget" as CFString, enabled)
             if success {
                 print("✅ \(enabled ? "Enabled" : "Disabled") launch at login (legacy)")
             } else {
@@ -770,7 +770,7 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 if settings.authorizationStatus == .authorized {
                     let content = UNMutableNotificationContent()
-                    content.title = "🚌 Ruter Widget"
+                    content.title = "🚌 KollektivWidget"
                     content.body = "Test notification: Bus 74 to Mortensrud leaves in 5 minutes!"
                     content.sound = UNNotificationSound.default
                     let request = UNNotificationRequest(
@@ -788,7 +788,7 @@ struct ContentView: View {
                 } else {
                     let alert = NSAlert()
                     alert.messageText = "Notifications Not Allowed"
-                    alert.informativeText = "Please enable notifications for Ruter Widget in System Preferences > Notifications to receive departure alerts."
+                    alert.informativeText = "Please enable notifications for KollektivWidget in System Preferences > Notifications to receive departure alerts."
                     alert.addButton(withTitle: "Open Settings")
                     alert.addButton(withTitle: "Cancel")
                     if alert.runModal() == .alertFirstButtonReturn {
