@@ -8,7 +8,7 @@ let delegate = AppDelegate()
 app.delegate = delegate
 app.run()
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     var statusBarItem: NSStatusItem!
     var popover: NSPopover!
     var timer: Timer?
@@ -17,21 +17,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Set up status bar item first
         setupStatusBar()
         
-        // Request notification permissions with delay to ensure app is fully loaded  
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            self.forceNotificationRegistration()
+        // Configure notifications
+        UNUserNotificationCenter.current().delegate = self
+        logBundleInfo()
+        
+        // Request notification permissions with a slight delay to ensure app is fully loaded
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.requestNotificationAuthorization()
         }
         
         // Start monitoring departures
         startMonitoring()
     }
     
-    private func forceNotificationRegistration() {
-        print("🚀 FORCE REGISTERING app with macOS notification system...")
-        
-        // Step 1: Request permissions - this should trigger the system dialog
+    private func requestNotificationAuthorization() {
+        print("🚀 Requesting notification authorization...")
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             print("🔔 Permission request completed: granted=\(granted), error=\(error?.localizedDescription ?? "none")")
+            
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                print("📱 Notification settings -> status: \(settings.authorizationStatus.rawValue), alert: \(settings.alertSetting.rawValue), sound: \(settings.soundSetting.rawValue)")
+            }
             
             if granted {
                 // Send a test notification immediately
@@ -39,7 +45,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self.sendImmediateTestNotification()
                 }
             } else {
-                print("❌ Permission denied - app should now appear in System Preferences")
+                print("❌ Permission denied - opening System Settings > Notifications")
+                self.showNotificationPermissionAlert()
             }
         }
     }
@@ -60,58 +67,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    private func requestNotificationPermission() {
-        print("🔔 Forcing app registration with notification system...")
-        
-        // FIRST: Try to send a notification immediately to force registration
-        let content = UNMutableNotificationContent()
-        content.title = "🚌 Ruter Widget"
-        content.body = "Registering with notification system..."
-        content.sound = UNNotificationSound.default
-        
-        let request = UNNotificationRequest(identifier: "register-\(Date().timeIntervalSince1970)", content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request) { error in
-            print("📝 Registration attempt result: \(error?.localizedDescription ?? "Success")")
-            
-            // THEN: Request permissions
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-                DispatchQueue.main.async {
-                    if granted {
-                        print("✅ Notification permission granted")
-                        
-                        // Send a welcome notification to confirm it works
-                        let welcomeContent = UNMutableNotificationContent()
-                        welcomeContent.title = "🚌 Ruter Widget Ready!"
-                        welcomeContent.body = "Notifications are now enabled. You'll get alerts for your chosen departure times."
-                        welcomeContent.sound = UNNotificationSound.default
-                        
-                        let welcomeRequest = UNNotificationRequest(identifier: "welcome-\(Date().timeIntervalSince1970)", content: welcomeContent, trigger: nil)
-                        UNUserNotificationCenter.current().add(welcomeRequest) { error in
-                            if let error = error {
-                                print("❌ Error sending welcome notification: \(error)")
-                            } else {
-                                print("✅ Welcome notification sent")
-                            }
-                        }
-                        
-                        // Check detailed settings
-                        UNUserNotificationCenter.current().getNotificationSettings { settings in
-                            print("📱 Notification settings: \(settings.authorizationStatus.rawValue)")
-                            print("🔔 Alert setting: \(settings.alertSetting.rawValue)")
-                            print("🔊 Sound setting: \(settings.soundSetting.rawValue)")
-                        }
-                    } else {
-                        print("❌ Notification permission denied")
-                        if let error = error {
-                            print("   Error: \(error.localizedDescription)")
-                        }
-                        // Show an alert to guide user to System Preferences
-                        self.showNotificationPermissionAlert()
-                    }
-                }
-            }
-        }
-    }
+    // Keep this around if we later want to try a pre-flight notification before requesting permissions
+    // but it's not needed for registration.
     
     private func showNotificationPermissionAlert() {
         DispatchQueue.main.async {
@@ -126,6 +83,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.notifications")!)
             }
         }
+    }
+
+    // Ensure notifications show while the app is active (banner/list)
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        return [.banner, .list, .sound]
+    }
+
+    private func logBundleInfo() {
+        let bundleId = Bundle.main.bundleIdentifier ?? "(nil)"
+        let bundlePath = Bundle.main.bundlePath
+        print("📦 Bundle ID: \(bundleId)")
+        print("📦 Bundle Path: \(bundlePath)")
     }
     
     private func setupStatusBar() {

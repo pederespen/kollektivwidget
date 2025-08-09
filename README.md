@@ -1,136 +1,53 @@
 # 🚌 Ruter Widget
 
-A macOS menu bar app that sends notifications when your bus, tram, or metro is about to leave - perfect for knowing when to leave work!
+macOS menu bar app that notifies you before your bus, tram, metro, or train departs.
 
-## ✨ Features
-
-- **Simple Setup**: Search stops by name or add by ID
-- **Smart Notifications**: Get notified X minutes before departure
-- **Real-time Data**: Uses Entur's live departure API
-- **Menu Bar Integration**: Unobtrusive menu bar icon
-- **Multiple Stops**: Monitor several stops at once
-- **Transport Types**: Supports buses 🚌, trams 🚋, metro 🚇, and trains 🚆
-
-## 🚀 Quick Start
+## 🚀 Development quick start
 
 ### Prerequisites
-
-- macOS 13.0 or later
+- macOS 13+
 - Xcode Command Line Tools: `xcode-select --install`
 
-### Building & Running
+### Build, sign, install, and run
 
-1. **Clone & Build**:
-
-   ```bash
-   git clone <your-repo>
-   cd ruter-widget
-   make build
-   ```
-
-2. **Run the App**:
-
-   ```bash
-   make run
-   ```
-
-3. **Install to Applications** (optional):
-
-   ```bash
-   make install
-   ```
-
-4. **Setup**:
-   - Click the bus icon in your menu bar
-   - **Search stops by name** - Just type "jernbanetorget" or any stop name
-   - **Or manually enter stop IDs** (click "Enter Stop ID Manually")
-   - Set notification lead time (default: 5 minutes)
-   - Test with "Test Notification" button
-
-### Adding Stops - Two Ways
-
-**🔍 Method 1: Search by Name (Recommended)**
-
-- Simply type the stop name (e.g., "jernbanetorget", "stortinget")
-- Select from the search results
-- Much easier than finding IDs!
-
-**🆔 Method 2: Manual Stop ID Entry**
-
-- Click "Enter Stop ID Manually"
-- Stop IDs follow format `NSR:StopPlace:XXXXX`
-- Common examples:
-  - `NSR:StopPlace:58366` - Jernbanetorget (Oslo Central)
-  - `NSR:StopPlace:58249` - Nationaltheatret
-  - `NSR:StopPlace:6275` - Stortinget
-
-## 🔧 How It Works
-
-1. **Monitor**: App checks your stops every 30 seconds
-2. **Calculate**: Determines time until next departures
-3. **Notify**: Sends macOS notification when departure is within your lead time
-4. **Example**: "🚌 Bus 74 to Mortensrud leaves in 5 minutes from Jernbanetorget"
-
-## 🎯 Perfect For
-
-- **Commuters**: Know exactly when to leave work
-- **Students**: Never miss your bus/tram to campus
-- **Visitors**: Stay on schedule while exploring Oslo
-- **Anyone**: Using Oslo's excellent public transport system
-
-## 📝 Configuration
-
-Settings are saved automatically:
-
-- **Stops**: Stored in UserDefaults
-- **Lead Time**: 1-30 minutes (default: 5)
-- **Notifications**: Requires permission on first run
-
-## 🔧 Technical Details
-
-- **Language**: Swift
-- **Framework**: SwiftUI + Cocoa
-- **API**: Entur GraphQL API (public, no auth needed)
-- **Platform**: macOS 13.0+
-- **Architecture**: Menu bar app with background monitoring
-
-## 🛠 Development
-
-Built as a Swift Package for easy development:
+The Makefile handles everything (including ad‑hoc code signing so notifications work on macOS 15/Sequoia):
 
 ```bash
-# Build
-swift build
+git clone <your-repo>
+cd ruter-widget
 
-# Run
-swift run
+# Rebuilds, ad‑hoc signs, installs to /Applications, and launches
+make run
 
-# Clean
-swift package clean
+# If you need a fresh install
+make reinstall
+
+# Verify the app bundle is signed
+make verify-sign
+
+# Clean local build artifacts
+make clean
 ```
 
-## 📱 API Usage
+On first launch, macOS will prompt for notification permission. Allow it. The app will then appear in System Settings > Notifications.
 
-Uses Entur's public GraphQL API:
+### Troubleshooting notifications (Sequoia)
+- Always run the installed app from `/Applications` (the Makefile does this).
+- The build is ad‑hoc signed automatically; this is sufficient for local development.
+- If the app doesn’t appear under Settings > Notifications after allowing:
+  - Quit the app, run `make reinstall`, launch again.
+  - Restart your Mac once if needed.
 
-- **Endpoint**: `https://api.entur.io/journey-planner/v3/graphql`
-- **No Authentication**: Public departure data
-- **Real-time**: Live departure information
-- **Coverage**: All Norwegian public transport
+## 🧭 Using the app
+- Click the bus icon in the menu bar.
+- Search a stop by name and select lines to monitor, or enter a stop ID (`NSR:StopPlace:XXXXX`).
+- Set the notification lead time (default 5 min).
+- Use “Test Notification” to confirm delivery.
 
-## 🚧 Future Ideas
-
-- [ ] Favorite lines/destinations filtering
-- [ ] Historical departure analysis
-- [ ] Widget Kit integration
-- [ ] Multiple location profiles (home/work)
-- [ ] Departure delay notifications
-
-## 🙏 Credits
-
-- **Entur**: For providing excellent public transport APIs
-- **Ruter**: For Oslo's fantastic transit system
+## 🔧 Tech
+- Swift, SwiftUI, Cocoa
+- Entur Journey Planner GraphQL (public, no auth)
+- Menubar app with background polling
 
 ## 📄 License
-
-MIT License - Feel free to adapt for your city's transit system!
+MIT
