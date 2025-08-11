@@ -185,8 +185,10 @@ struct ContentView: View {
             Button("Cancel", role: .cancel) { routeToDelete = nil }
             Button("Delete", role: .destructive) {
                 if let route = routeToDelete {
-                    removeRoute(route)
-                    routeToDelete = nil
+                    Task { 
+                        await removeRoute(route)
+                        await MainActor.run { routeToDelete = nil }
+                    }
                 }
             }
         } message: {
@@ -309,14 +311,18 @@ struct ContentView: View {
                     HStack {
                         TextField("Search stops (e.g., \"jernbanetorget\")", text: $searchQuery)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .onChange(of: searchQuery) { _, _ in searchStopsWithDebounce() }
+                            .onChange(of: searchQuery) { _, _ in 
+                                Task { await searchStopsWithDebounce() }
+                            }
                         if isSearching { ProgressView().scaleEffect(0.8) }
                     }
                     if !searchResults.isEmpty {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 4) {
                                 ForEach(searchResults) { result in
-                                    Button(action: { selectStop(result) }) {
+                                    Button(action: { 
+                                        Task { await selectStop(result) }
+                                    }) {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(result.name)
                                             Text(result.label)
@@ -381,7 +387,9 @@ struct ContentView: View {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 6) {
                                 ForEach(availableLines.filter { selectedAddTab.matches(line: $0) }) { line in
-                                    Button(action: { chooseLine(line) }) {
+                                    Button(action: { 
+                                        Task { await chooseLine(line) }
+                                    }) {
                                         HStack(spacing: 10) {
                                             Image(systemName: symbolName(for: line.transportMode))
                                             Text(line.displayName)
@@ -454,12 +462,16 @@ struct ContentView: View {
             route: route,
             initialLeadTime: effectiveLeadTime(for: route),
             onSave: { minutes in
-                updateLeadTime(for: route, to: minutes)
-                routeBeingEdited = nil
+                Task {
+                    await updateLeadTime(for: route, to: minutes)
+                    await MainActor.run { routeBeingEdited = nil }
+                }
             },
             onDelete: {
-                removeRoute(route)
-                routeBeingEdited = nil
+                Task {
+                    await removeRoute(route)
+                    await MainActor.run { routeBeingEdited = nil }
+                }
             },
             onClose: { routeBeingEdited = nil }
         )
