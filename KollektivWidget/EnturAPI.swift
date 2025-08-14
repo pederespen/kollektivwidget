@@ -221,8 +221,7 @@ struct EnturAPI {
                     destination: call.destinationDisplay.frontText,
                     transportMode: call.serviceJourney.line.transportMode,
                     transportSubmode: call.serviceJourney.line.transportSubmode,
-                    notificationsEnabled: false,
-                    notificationLeadTime: 5
+
                 )
                 
                 lines.append(line)
@@ -293,10 +292,7 @@ struct Departure {
         return Int(timeInterval / 60)
     }
     
-    func shouldNotify(leadTimeMinutes: Int) -> Bool {
-        let minutesUntil = minutesUntilDeparture()
-        return minutesUntil <= leadTimeMinutes && minutesUntil > 0
-    }
+
 }
 
 struct StopSearchResult: Identifiable {
@@ -314,8 +310,7 @@ struct TransitLine: Identifiable, Codable {
     let destination: String
     let transportMode: String
     let transportSubmode: String
-    var notificationsEnabled: Bool?
-    var notificationLeadTime: Int?
+
     
     var displayName: String {
         "\(lineCode) to \(destination)"
@@ -332,5 +327,4 @@ struct TransitLine: Identifiable, Codable {
         }
     }
 
-    var effectiveLeadTimeMinutes: Int { notificationLeadTime ?? 5 }
 }
