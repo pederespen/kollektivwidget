@@ -244,7 +244,7 @@ struct ContentView: View {
                         TextField("Search stops (e.g., \"jernbanetorget\")", text: $searchQuery)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .onChange(of: searchQuery) { _, _ in 
-                                Task { searchStopsWithDebounce() }
+                                Task { await searchStopsWithDebounce() }
                             }
                         if isSearching { ProgressView().scaleEffect(0.8) }
                     }
@@ -253,7 +253,7 @@ struct ContentView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 ForEach(searchResults) { result in
                                     Button(action: { 
-                                        Task { selectStop(result) }
+                                        Task { await selectStop(result) }
                                     }) {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(result.name)
@@ -310,7 +310,7 @@ struct ContentView: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 ForEach(availableLines.filter { selectedAddTab.matches(line: $0) }) { line in
                                     Button(action: { 
-                                        Task { chooseLine(line) }
+                                        Task { await chooseLine(line) }
                                     }) {
                                         HStack(spacing: 10) {
                                             Image(systemName: symbolName(for: line.transportMode))
