@@ -220,8 +220,7 @@ struct EnturAPI {
                     lineName: call.serviceJourney.line.name,
                     destination: call.destinationDisplay.frontText,
                     transportMode: call.serviceJourney.line.transportMode,
-                    transportSubmode: call.serviceJourney.line.transportSubmode,
-
+                    transportSubmode: call.serviceJourney.line.transportSubmode
                 )
                 
                 lines.append(line)
